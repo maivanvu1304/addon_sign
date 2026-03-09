@@ -169,6 +169,34 @@ class DsDocument(models.Model):
         compute='_compute_item_count',
     )
 
+    attachment_count = fields.Integer(
+        string='Files',
+        compute='_compute_attachment_count'
+    )
+
+    # Đếm số lịch sử ký
+    sign_history_count = fields.Integer(
+        string='Lịch sử ký',
+        compute='_compute_sign_history_count'
+    )
+
+    @api.depends('attachment_id', 'related_attachment_ids')
+    def _compute_attachment_count(self):
+        for rec in self:
+            if rec.state != 'draft':
+                rec.attachment_count = len(rec.attachment_id)
+            else:
+                rec.attachment_count = 0
+
+    @api.depends()  # thay bằng field liên quan nếu có
+    def _compute_sign_history_count(self):
+        for rec in self:
+            rec.sign_history_count = self.env['mail.message'].search_count([
+                ('res_id', '=', rec.id),
+                ('model', '=', 'ds.document'),
+                ('message_type', '=', 'notification'),
+            ])
+
     # ==================== Computed Methods ====================
 
     @api.depends('request_item_ids', 'request_item_ids.state', 'request_item_ids.user_id')
@@ -322,3 +350,28 @@ class DsDocument(models.Model):
                 'state': 'done',
                 'date_done': fields.Datetime.now(),
             })
+    # def action_view_attachments(self):
+    #     return {
+    #         'type': 'ir.actions.act_window',
+    #         'name': 'Files',
+    #         'res_model': 'ir.attachment',
+    #         'view_mode': 'list,form',
+    #         'domain': [('id', 'in', self.attachment_id.ids)],
+    #         'target': 'current',
+    #     }
+    def action_view_attachments(self):
+        attachment_ids = self.attachment_id.ids 
+        action = self.env.ref('sign_dochub.ds_attachment_action').read()[0]
+        action['domain'] = [('id', 'in', attachment_ids)]
+        action['target'] = 'current'
+        return action
+    
+    def action_view_sign_history(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Lịch sử ký',
+            'res_model': 'ds.sign.log',  # model lịch sử của bạn
+            'view_mode': 'list',
+        'domain': [('document_id', '=', self.id)],
+        'target': 'current',
+        }

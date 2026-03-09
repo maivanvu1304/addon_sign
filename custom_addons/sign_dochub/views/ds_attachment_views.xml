@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- ============================================================ -->
+        <!-- DS ATTACHMENT: Kanban View (hiển thị khi click nút Files) -->
+        <!-- ============================================================ -->
+        <record id="ds_attachment_view_kanban" model="ir.ui.view">
+            <field name="name">ds.attachment.kanban</field>
+            <field name="model">ir.attachment</field>
+            <field name="arch" type="xml">
+                <kanban string="Danh sách file" create="false" class="o_ds_attachment_kanban">
+                    <field name="id"/>
+                    <field name="name"/>
+                    <field name="mimetype"/>
+                    <field name="file_size"/>
+                    <field name="create_date"/>
+                    <field name="create_uid"/>
+                    <field name="res_name"/>
+                    <templates>
+                        <t t-name="card">
+                            <!-- Header: file icon + tên file + kích thước -->
+                            <div class="d-flex align-items-start mb-3">
+                                <div class="me-2 mt-1">
+                                    <t t-if="record.mimetype.value and record.mimetype.value.indexOf('pdf') &gt;= 0">
+                                        <i class="fa fa-file-pdf-o text-danger" style="font-size: 1.4em;"/>
+                                    </t>
+                                    <t t-elif="record.mimetype.value and record.mimetype.value.indexOf('image') &gt;= 0">
+                                        <i class="fa fa-file-image-o text-info" style="font-size: 1.4em;"/>
+                                    </t>
+                                    <t t-elif="record.mimetype.value and (record.mimetype.value.indexOf('word') &gt;= 0 or record.mimetype.value.indexOf('document') &gt;= 0)">
+                                        <i class="fa fa-file-word-o text-primary" style="font-size: 1.4em;"/>
+                                    </t>
+                                    <t t-elif="record.mimetype.value and (record.mimetype.value.indexOf('sheet') &gt;= 0 or record.mimetype.value.indexOf('excel') &gt;= 0)">
+                                        <i class="fa fa-file-excel-o text-success" style="font-size: 1.4em;"/>
+                                    </t>
+                                    <t t-else="">
+                                        <i class="fa fa-file-o text-muted" style="font-size: 1.4em;"/>
+                                    </t>
+                                </div>
+                                <div class="flex-grow-1 min-w-0">
+                                    <strong class="d-block text-truncate" t-att-title="record.name.value">
+                                        <a t-att-href="'/web/content/' + record.id.value + '?download=true'"
+                                           class="text-primary">
+                                            <t t-esc="record.name.value"/>
+                                        </a>
+                                    </strong>
+                                    <span class="text-muted small" t-if="record.file_size.value">
+                                        <t t-esc="record.file_size.value"/> bytes
+                                    </span>
+                                </div>
+                                <div class="ms-2">
+                                    <a t-att-href="'/web/content/' + record.id.value + '?download=true'"
+                                       class="text-muted" title="Tải xuống">
+                                        <i class="fa fa-download"/>
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- Tạo bởi -->
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="text-muted small">Tạo bởi:</span>
+                                <div class="d-flex align-items-center ms-2">
+                                    <i class="fa fa-user-circle text-muted me-1"/>
+                                    <strong class="small">
+                                        <t t-esc="record.create_uid.value"/>
+                                    </strong>
+                                </div>
+                            </div>
+
+                            <!-- Ngày tạo -->
+                            <div class="d-flex align-items-center">
+                                <span class="text-muted small">Ngày tạo:</span>
+                                <span class="small ms-2">
+                                    <i class="fa fa-calendar-o text-muted me-1"/>
+                                    <t t-esc="record.create_date.value"/>
+                                </span>
+                            </div>
+                        </t>
+                    </templates>
+                </kanban>
+            </field>
+        </record>
+
+        <!-- List view cho ir.attachment (fallback) -->
+        <record id="ds_attachment_view_list" model="ir.ui.view">
+            <field name="name">ds.attachment.list</field>
+            <field name="model">ir.attachment</field>
+            <field name="arch" type="xml">
+                <list string="Danh sách file" create="false">
+                    <field name="name" string="Tên file"/>
+                    <field name="res_name" string="Mã chứng từ"/>
+                    <field name="mimetype" string="Loại file"/>
+                    <field name="file_size" string="Kích thước" widget="binary_size"/>
+                    <field name="create_uid" string="Tạo bởi"/>
+                    <field name="create_date" string="Ngày tạo"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Action mở danh sách file với kanban view -->
+        <record id="ds_attachment_action" model="ir.actions.act_window">
+            <field name="name">Danh sách file</field>
+            <field name="res_model">ir.attachment</field>
+            <field name="view_mode">kanban,list</field>
+            <field name="view_ids" eval="[
+                (5, 0, 0),
+                (0, 0, {'view_mode': 'kanban', 'view_id': ref('ds_attachment_view_kanban')}),
+                (0, 0, {'view_mode': 'list',   'view_id': ref('ds_attachment_view_list')}),
+            ]"/>
+        </record>
+
+    </data>
+</odoo>
