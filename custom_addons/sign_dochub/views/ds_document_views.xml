@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- ============================================================ -->
+        <!-- DS DOCUMENT: List View -->
+        <!-- ============================================================ -->
+        <record id="ds_document_view_list" model="ir.ui.view">
+            <field name="name">ds.document.list</field>
+            <field name="model">ds.document</field>
+            <field name="arch" type="xml">
+                <list string="Documents"
+                      decoration-info="state == 'draft'"
+                      decoration-warning="state in ('in_progress', 'adjusting')"
+                      decoration-success="state == 'done'"
+                      decoration-danger="state in ('cancelled', 'rejected')">
+                    <field name="name" string="Document Code"/>
+                    <field name="title" string="Title"/>
+                    <field name="document_type_id" string="Type"/>
+                    <field name="department_id" string="Department"/>
+                    <field name="partner_id" string="Customer"/>
+                    <field name="date_deadline" string="Deadline"/>
+                    <field name="state" string="State" widget="badge"
+                           decoration-info="state == 'draft'"
+                           decoration-warning="state in ('in_progress', 'adjusting')"
+                           decoration-success="state == 'done'"
+                           decoration-danger="state in ('cancelled', 'rejected')"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- DS DOCUMENT: Form View -->
+        <!-- ============================================================ -->
+        <record id="ds_document_view_form" model="ir.ui.view">
+            <field name="name">ds.document.form</field>
+            <field name="model">ds.document</field>
+            <field name="arch" type="xml">
+                <form string="Document">
+                    <header>
+                        <!-- draft -->
+                        <button name="action_start_workflow" string="Khởi tạo quy trình"
+                                type="object" class="btn-success"
+                                invisible="state != 'draft'"/>
+                        <!-- in_progress -->
+                        <button name="action_send_workflow" string="Gửi yêu cầu ký"
+                                type="object" class="btn-primary"
+                                invisible="state != 'in_progress'"/>
+                        <button name="action_adjust" string="Đặt vị trí ký"
+                                type="object"
+                                invisible="state != 'in_progress'"/>
+                        <button name="action_cancel" string="Hủy chứng từ"
+                                type="object" class="btn-secondary"
+                                invisible="state not in ('in_progress', 'done')"/>
+                        <!-- adjusting -->
+                        <button name="action_reset_positions" string="Reset vị trí ký"
+                                type="object"
+                                invisible="state != 'adjusting'"/>
+                        <button name="action_confirm_positions" string="Gửi quy trình"
+                                type="object" class="btn-primary"
+                                invisible="state != 'adjusting'"/>
+                        <!-- done -->
+                        <button name="action_publish" string="Ban hành kết quả"
+                                type="object" class="btn-success"
+                                invisible="state != 'done'"/>
+                        <!-- rejected / cancelled -->
+                        <button name="action_reset_to_draft" string="Đưa về nháp"
+                                type="object"
+                                invisible="state not in ('rejected', 'cancelled')"/>
+                        <field name="state" widget="statusbar"
+                               statusbar_visible="draft,in_progress,adjusting,done,rejected,cancelled"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" readonly="1"/>
+                            </h1>
+                        </div>
+                        <notebook>
+                            <!-- ===== Tab: Thông tin ===== -->
+                            <page string="Thông tin" name="page_info">
+                                <group>
+                                    <group string="THÔNG TIN CHỨNG TỪ">
+                                        <field name="title"/>
+                                        <field name="document_type_id"/>
+                                        <field name="department_id"/>
+                                        <field name="related_document_id"/>
+                                        <field name="description"/>
+                                        <field name="coordinator_id"/>
+                                        <field name="viewer_ids" widget="many2many_tags"/>
+                                    </group>
+                                    <group string="TỆP CHỨNG TỪ">
+                                        <field name="auto_sign_position"/>
+                                        <field name="render_mode"/>
+                                        <field name="attachment_id" widget="many2many_binary"/>
+                                        <field name="signed_attachment_id" invisible="state != 'done'"/>
+                                        <field name="related_attachment_ids" widget="many2many_binary"
+                                               string="Tài liệu liên quan"/>
+                                    </group>
+                                </group>
+                                <group>
+                                    <group string="THÔNG TIN THỜI GIAN">
+                                        <field name="date_deadline"/>
+                                        <field name="date_effective_from"/>
+                                        <field name="date_effective_to"/>
+                                    </group>
+                                    <group string="THÔNG TIN KHÁCH HÀNG">
+                                        <field name="partner_id"/>
+                                        <field name="contract_value"/>
+                                        <field name="currency_id" invisible="1"/>
+                                    </group>
+                                </group>
+                                <group>
+                                    <group>
+                                        <field name="creator_id" readonly="1"/>
+                                        <field name="template_id"/>
+                                    </group>
+                                    <group>
+                                        <field name="company_id" readonly="1" groups="base.group_multi_company"/>
+                                        <field name="date_request" readonly="1" invisible="not date_request"/>
+                                        <field name="date_done" readonly="1" invisible="not date_done"/>
+                                    </group>
+                                </group>
+                                <!-- Cancel info -->
+                                <group invisible="state != 'cancelled'">
+                                    <group string="THÔNG TIN HỦY">
+                                        <field name="cancel_reason" readonly="1"/>
+                                        <field name="cancel_user_id" readonly="1"/>
+                                        <field name="cancel_date" readonly="1"/>
+                                    </group>
+                                </group>
+                            </page>
+
+                            <!-- ===== Tab: Quy trình nội bộ ===== -->
+                            <page string="Quy Trình nội bộ" name="page_process">
+                                <div class="mb-3">
+                                    <button name="save_as_template" string="Lưu mẫu quy trình"
+                                            type="object" class="btn-secondary me-2"/>
+                                    <button name="apply_template" string="Tải quy trình"
+                                            type="object" class="btn-secondary"/>
+                                </div>
+                                <field name="request_item_ids">
+                                    <list editable="bottom">
+                                        <field name="user_id" string="Người nhận"/>
+                                        <field name="phone" string="Số điện thoại"/>
+                                        <field name="email" string="Email"/>
+                                        <field name="role" string="Quyền truy cập"/>
+                                    </list>
+                                </field>
+                            </page>
+
+                            <!-- ===== Tab: Quy trình khách hàng (only when done) ===== -->
+                            <page string="Quy trình khách hàng" name="page_customer"
+                                  invisible="state != 'done'">
+                                <field name="customer_ids">
+                                    <list editable="bottom">
+                                        <field name="partner_id" string="Customer"/>
+                                        <field name="email" string="Email"/>
+                                        <field name="phone" string="Phone"/>
+                                        <field name="verification_code" string="Verification Code" readonly="1"/>
+                                        <field name="is_sent" string="Sent" readonly="1"/>
+                                        <field name="date_sent" string="Date Sent" readonly="1"/>
+                                        <button name="action_send_customer_email" string="Send"
+                                                type="object" class="btn-primary btn-sm"/>
+                                    </list>
+                                </field>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <chatter/>
+                </form>
+            </field>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- DS DOCUMENT: Search View -->
+        <!-- ============================================================ -->
+        <record id="ds_document_view_search" model="ir.ui.view">
+            <field name="name">ds.document.search</field>
+            <field name="model">ds.document</field>
+            <field name="arch" type="xml">
+                <search string="Search Documents">
+                    <field name="name"/>
+                    <field name="title"/>
+                    <field name="document_type_id"/>
+                    <field name="department_id"/>
+                    <field name="partner_id"/>
+                    <filter string="Draft" name="filter_draft"
+                            domain="[('state', '=', 'draft')]"/>
+                    <filter string="In Progress" name="filter_in_progress"
+                            domain="[('state', '=', 'in_progress')]"/>
+                    <filter string="Adjusting" name="filter_adjusting"
+                            domain="[('state', '=', 'adjusting')]"/>
+                    <filter string="Done" name="filter_done"
+                            domain="[('state', '=', 'done')]"/>
+                    <filter string="Rejected" name="filter_rejected"
+                            domain="[('state', '=', 'rejected')]"/>
+                    <filter string="Cancelled" name="filter_cancelled"
+                            domain="[('state', '=', 'cancelled')]"/>
+                    <separator/>
+                    <filter string="My Documents" name="filter_my"
+                            domain="[('creator_id', '=', uid)]"/>
+                    <filter string="Deadline" name="filter_deadline"
+                            date="date_deadline"/>
+                    <group>
+                        <filter string="Type" name="group_by_type"
+                                context="{'group_by': 'document_type_id'}"/>
+                        <filter string="Department" name="group_by_department"
+                                context="{'group_by': 'department_id'}"/>
+                        <filter string="State" name="group_by_state"
+                                context="{'group_by': 'state'}"/>
+                        <filter string="Creator" name="group_by_creator"
+                                context="{'group_by': 'creator_id'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- DS DOCUMENT: Actions -->
+        <!-- ============================================================ -->
+        <record id="ds_document_action" model="ir.actions.act_window">
+            <field name="name">Documents</field>
+            <field name="res_model">ds.document</field>
+            <field name="view_mode">list,form</field>
+            <field name="search_view_id" ref="ds_document_view_search"/>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Create your first document
+                </p>
+            </field>
+        </record>
+
+        <!-- Danh sách file ký = documents in_progress -->
+        <record id="ds_document_file_list_action" model="ir.actions.act_window">
+            <field name="name">Signing Files</field>
+            <field name="res_model">ds.document</field>
+            <field name="view_mode">list,form</field>
+            <field name="search_view_id" ref="ds_document_view_search"/>
+            <field name="domain">[('state', '=', 'in_progress')]</field>
+        </record>
+
+    </data>
+</odoo>

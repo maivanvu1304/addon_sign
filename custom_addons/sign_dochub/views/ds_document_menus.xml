@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- ============================================================ -->
+        <!-- MENUS -->
+        <!-- ============================================================ -->
+
+        <!-- Root menu -->
+        <menuitem id="ds_menu_root"
+                  name="Dochub"
+                  web_icon="sign_dochub,static/description/icon.png"
+                  sequence="100"/>
+
+        <!-- Chứng từ -->
+        <menuitem id="ds_menu_document"
+                  name="Chứng từ"
+                  parent="ds_menu_root"
+                  action="ds_document_action"
+                  sequence="10"/>
+
+        <!-- Danh sách file ký -->
+        <menuitem id="ds_menu_file_list"
+                  name="Danh sách file ký"
+                  parent="ds_menu_root"
+                  action="ds_document_file_list_action"
+                  sequence="20"/>
+
+        <!-- Ký hàng loạt (placeholder) -->
+        <menuitem id="ds_menu_batch_sign"
+                  name="Ký hàng loạt"
+                  parent="ds_menu_root"
+                  action="ds_document_action"
+                  sequence="30"/>
+
+        <!-- Duyệt hàng loạt (placeholder) -->
+        <menuitem id="ds_menu_batch_approve"
+                  name="Duyệt hàng loạt"
+                  parent="ds_menu_root"
+                  action="ds_document_action"
+                  sequence="40"/>
+
+        <!-- Cấu hình -->
+        <menuitem id="ds_menu_config"
+                  name="Cấu hình"
+                  parent="ds_menu_root"
+                  sequence="90"/>
+
+        <menuitem id="ds_menu_config_template"
+                  name="Mẫu quy trình"
+                  parent="ds_menu_config"
+                  action="ds_document_template_action"
+                  sequence="10"/>
+
+        <menuitem id="ds_menu_config_document_type"
+                  name="Loại chứng từ"
+                  parent="ds_menu_config"
+                  action="ds_document_type_action"
+                  sequence="20"/>
+
+    </data>
+</odoo>

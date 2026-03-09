@@ -1,0 +1,13 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_ds_document_user,ds.document.user,model_ds_document,group_ds_user,1,1,1,0
+access_ds_document_manager,ds.document.manager,model_ds_document,group_ds_manager,1,1,1,1
+access_ds_document_type_user,ds.document.type.user,model_ds_document_type,group_ds_user,1,0,0,0
+access_ds_document_type_manager,ds.document.type.manager,model_ds_document_type,group_ds_manager,1,1,1,1
+access_ds_document_template_user,ds.document.template.user,model_ds_document_template,group_ds_user,1,0,0,0
+access_ds_document_template_manager,ds.document.template.manager,model_ds_document_template,group_ds_manager,1,1,1,1
+access_ds_document_template_step_user,ds.document.template.step.user,model_ds_document_template_step,group_ds_user,1,0,0,0
+access_ds_document_template_step_manager,ds.document.template.step.manager,model_ds_document_template_step,group_ds_manager,1,1,1,1
+access_ds_document_request_item_user,ds.document.request.item.user,model_ds_document_request_item,group_ds_user,1,1,1,0
+access_ds_document_request_item_manager,ds.document.request.item.manager,model_ds_document_request_item,group_ds_manager,1,1,1,1
+access_ds_document_customer_user,ds.document.customer.user,model_ds_document_customer,group_ds_user,1,1,1,0
+access_ds_document_customer_manager,ds.document.customer.manager,model_ds_document_customer,group_ds_manager,1,1,1,1

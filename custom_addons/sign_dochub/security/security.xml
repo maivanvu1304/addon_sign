@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- ============================================================ -->
+        <!-- Security Groups -->
+        <!-- ============================================================ -->
+        <record id="module_category_ds_document" model="ir.module.category">
+            <field name="name">Document Signing</field>
+            <field name="sequence">50</field>
+        </record>
+
+        <record id="group_ds_user" model="res.groups">
+            <field name="name">User</field>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+
+        <record id="group_ds_manager" model="res.groups">
+            <field name="name">Manager</field>
+            <field name="implied_ids" eval="[(4, ref('group_ds_user'))]"/>
+            <field name="user_ids" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- Record Rules -->
+        <!-- ============================================================ -->
+        <record id="rule_ds_document_user" model="ir.rule">
+            <field name="name">DS Document: User sees own/coordinated/viewed/signing</field>
+            <field name="model_id" ref="model_ds_document"/>
+            <field name="domain_force">['|', '|', '|',
+                ('creator_id', '=', user.id),
+                ('coordinator_id', '=', user.id),
+                ('viewer_ids', 'in', user.id),
+                ('request_item_ids.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('group_ds_user'))]"/>
+        </record>
+
+        <record id="rule_ds_document_manager" model="ir.rule">
+            <field name="name">DS Document: Manager sees all</field>
+            <field name="model_id" ref="model_ds_document"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_ds_manager'))]"/>
+        </record>
+
+    </data>
+</odoo>
