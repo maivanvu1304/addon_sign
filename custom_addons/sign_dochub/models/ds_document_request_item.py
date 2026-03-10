@@ -18,7 +18,7 @@ class DsDocumentRequestItem(models.Model):
     name = fields.Char(string='Step Name')
     role = fields.Selection(
         selection=[
-            ('sign', 'Ký'),
+            ('sign', 'Ký số'),
             ('approve', 'Phê duyệt'),
         ],
         string='Role',

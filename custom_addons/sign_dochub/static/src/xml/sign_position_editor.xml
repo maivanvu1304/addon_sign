@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="ds_sign.SignPositionEditor">
+        <div class="ds_sign_position_editor d-flex flex-column">
+
+            <!-- HEADER BAR -->
+            <div class="ds_editor__header d-flex align-items-center px-3 py-2 bg-white border-bottom shadow-sm">
+                <button class="btn btn-sm btn-light border" t-on-click="backToDocument">
+                    <i class="fa fa-arrow-left me-1"/> Quay lại
+                </button>
+                <div class="ds_editor__title fw-bold text-truncate flex-grow-1">
+                    Chọn vị trí ký
+                </div>
+                <!-- Page navigation -->
+                <div class="ds_editor__page-nav d-flex align-items-center">
+                    <button class="btn btn-sm btn-light border" t-on-click="prevPage" t-att-disabled="state.currentPage === 1">
+                        <i class="fa fa-chevron-up"/>
+                    </button>
+                    <span class="ds_editor__page-info text-muted">
+                        <t t-esc="state.currentPage"/> trên <t t-esc="state.totalPages"/>
+                    </span>
+                    <button class="btn btn-sm btn-light border" t-on-click="nextPage" t-att-disabled="state.currentPage === state.totalPages">
+                        <i class="fa fa-chevron-down"/>
+                    </button>
+                </div>
+                <button class="btn btn-sm btn-primary" t-on-click="savePositions">
+                    <i class="fa fa-save me-1"/> Lưu vị trí
+                </button>
+                <button class="btn btn-sm btn-success" t-on-click="confirmAndContinue">
+                    <i class="fa fa-check me-1"/> Gửi quy trình
+                </button>
+            </div>
+
+            <!-- MAIN CONTENT -->
+            <div class="d-flex flex-grow-1 overflow-hidden">
+
+                <!-- SIDEBAR: Danh sách người ký -->
+                <div class="ds_editor__sidebar bg-white border-end d-flex flex-column">
+                    <div class="ds_editor__sidebar-title fw-semibold mb-2">Quy trình ký</div>
+
+                    <t t-foreach="state.signers" t-as="signer" t-key="signer.item_id">
+                        <div class="ds_signer_card mb-2 p-0 rounded border overflow-hidden"
+                             t-att-style="'border-color:' + signer.color + ' !important; border-left: 4px solid ' + signer.color + ' !important;'">
+                            <!-- Header: tên + badge step -->
+                            <div class="ds_signer_card__header d-flex align-items-center px-2 py-1"
+                                 t-att-style="'background:' + signer.color + '; color: white;'">
+                                <span class="fw-semibold text-truncate flex-grow-1">
+                                    <t t-esc="signer_index + 1"/>. <t t-esc="signer.name"/>
+                                </span>
+                            </div>
+                            <!-- Body: info -->
+                            <div class="ds_signer_card__body px-2 py-1">
+                                <div class="text-muted mb-1">
+                                    <i class="fa fa-circle me-1"
+                                       t-att-style="'color:' + (signer.state === 'done' ? '#4caf50' : signer.state === 'pending' ? '#ff9800' : '#aaa')"/>
+                                    <t t-esc="signer.state === 'done' ? 'Đã ký' : signer.state === 'pending' ? 'Đang chờ' : 'Nhập'"/>
+                                </div>
+                                <div class="text-muted mb-1">
+                                    Ký số: <span t-att-style="'color:' + signer.color" class="fw-semibold">Ký số</span>
+                                </div>
+                                <div class="text-muted">Giờ ký: —</div>
+                            </div>
+                            <!-- Drag handle: kéo vào PDF -->
+                            <div class="ds_signer_card__drag-handle px-2 py-1 text-center"
+                                 t-att-style="'background:' + signer.color + '22;'"
+                                 draggable="true"
+                                 t-on-dragstart="(e) =&gt; this.onSignerDragStart(e, signer_index)">
+                                <span class="ds_signer_card__drag-text">
+                                    <i class="fa fa-arrows me-1"/>Kéo vào PDF
+                                </span>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+
+                <!-- PDF VIEWER AREA -->
+                <div class="ds_editor__pdf-area flex-grow-1 overflow-auto d-flex justify-content-center align-items-start p-4">
+
+                    <t t-if="state.loading">
+                        <div class="ds_editor__loading d-flex justify-content-center align-items-center">
+                            <i class="fa fa-spinner fa-spin fa-2x text-muted"/>
+                        </div>
+                    </t>
+
+                    <t t-else="">
+                        <!-- PDF canvas wrapper — position relative để overlay signature boxes -->
+                        <div class="ds_editor__pdf-container"
+                             t-ref="pdfContainer"
+                             t-on-drop="onCanvasDrop"
+                             t-on-dragover="onCanvasDragOver"
+                             t-on-mousedown="onCanvasMouseDown"
+                             t-on-mousemove="onCanvasMouseMove"
+                             t-on-mouseup="onCanvasMouseUp">
+
+                            <!-- PDF Canvas -->
+                            <canvas t-ref="pdfCanvas"/>
+
+                            <!-- Signature position overlays -->
+                            <t t-foreach="state.signers" t-as="signer" t-key="signer.item_id">
+                                <t t-if="signer.placed and signer.page === state.currentPage">
+                                    <div class="ds_sign_box"
+                                         t-att-style="
+                                             'left:' + signer.x + 'px;' +
+                                             'top:' + signer.y + 'px;' +
+                                             'background:' + signer.color + 'cc;' +
+                                             'border: 2px solid ' + signer.color + ';'
+                                         ">
+                                        <!-- Step label top left -->
+                                        <div class="ds_sign_box__label">
+                                            User
+                                        </div>
+                                        <!-- Remove button -->
+                                        <div class="ds_sign_box__remove"
+                                             t-on-click="() =&gt; this.removeSignerPosition(signer_index)">
+                                            ✕
+                                        </div>
+                                        <!-- Signer name -->
+                                        <div class="ds_sign_box__name text-center mt-1">
+                                            <t t-esc="signer.name"/>
+                                        </div>
+                                        <div class="ds_sign_box__state">Nhập</div>
+                                        <!-- Add more (+) button on left -->
+                                        <div class="ds_sign_box__add-btn"
+                                             t-att-style="'color:' + signer.color + '; border: 2px solid ' + signer.color + ';'">
+                                            +
+                                        </div>
+                                    </div>
+                                </t>
+                            </t>
+                        </div>
+                    </t>
+
+                    <t t-if="!state.pdfUrl and !state.loading">
+                        <div class="alert alert-warning">
+                            Không tìm thấy file PDF đính kèm. Vui lòng đính kèm file trước.
+                        </div>
+                    </t>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

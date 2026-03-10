@@ -102,6 +102,7 @@ class DsDocument(models.Model):
             ('draft', 'Chứng từ mới'),
             ('in_progress', 'Đang xử lý'),
             ('adjusting', 'Đang điều chỉnh'),
+            ('sign', 'Đang ký'),
             ('done', 'Đã hoàn tất'),
             ('rejected', 'Từ chối'),
             ('cancelled', 'Đã hủy'),
@@ -228,7 +229,7 @@ class DsDocument(models.Model):
     # ==================== Workflow Actions ====================
 
     def action_start_workflow(self):
-        """Button [Khởi tạo quy trình]: Validate → in_progress → activate step 1"""
+        """Button [Khởi tạo quy trình]: Validate → in_progress"""
         for doc in self:
             if not doc.request_item_ids:
                 raise UserError("Please add at least one workflow step before starting.")
@@ -236,14 +237,6 @@ class DsDocument(models.Model):
                 'state': 'in_progress',
                 'date_request': fields.Datetime.now(),
             })
-            doc._activate_next_step()
-
-    def action_send_workflow(self):
-        """Button [Gửi quy trình]: Send email for current pending step"""
-        for doc in self:
-            pending_items = doc.request_item_ids.filtered(lambda i: i.state == 'pending')
-            for item in pending_items:
-                item._send_notification_email()
 
     def action_adjust(self):
         """Button [Đặt vị trí ký]: Switch to adjusting state"""
@@ -258,8 +251,28 @@ class DsDocument(models.Model):
         })
 
     def action_confirm_positions(self):
-        """Finish adjusting → back to in_progress"""
-        self.write({'state': 'in_progress'})
+        """Button [Gửi quy trình]: Finish adjusting → switch to 'sign' state and activate first step"""
+        for doc in self:
+            doc.write({'state': 'sign'})
+            has_started = any(item.state != 'draft' for item in doc.request_item_ids)
+            if not has_started:
+                doc._activate_next_step()
+
+    def action_send_sign_request(self):
+        """Button [Gửi yêu cầu kí]: Send/Resend notification to current pending user"""
+        for doc in self:
+            pending_item = doc.request_item_ids.filtered(lambda i: i.state == 'pending')
+            if pending_item:
+                pending_item._send_notification_email()
+            else:
+                raise UserError("Không có người nhận nào đang chờ ký.")
+
+    def action_reject_document(self):
+        """Button [Từ chối]: Change state to rejected"""
+        self.write({'state': 'rejected'})
+        self.request_item_ids.filtered(
+            lambda i: i.state not in ('done', 'cancelled', 'rejected')
+        ).write({'state': 'rejected'})
 
     def action_publish(self):
         """Button [Ban hành kết quả]: Send email to all customers"""
@@ -271,7 +284,7 @@ class DsDocument(models.Model):
         """Button [Yêu cầu ký lại]: Reset steps and resend"""
         for doc in self:
             doc.request_item_ids.write({'state': 'draft', 'date_action': False})
-            doc.write({'state': 'in_progress'})
+            doc.write({'state': 'sign'})
             doc._activate_next_step()
 
     def action_cancel(self):
@@ -350,15 +363,6 @@ class DsDocument(models.Model):
                 'state': 'done',
                 'date_done': fields.Datetime.now(),
             })
-    # def action_view_attachments(self):
-    #     return {
-    #         'type': 'ir.actions.act_window',
-    #         'name': 'Files',
-    #         'res_model': 'ir.attachment',
-    #         'view_mode': 'list,form',
-    #         'domain': [('id', 'in', self.attachment_id.ids)],
-    #         'target': 'current',
-    #     }
     def action_view_attachments(self):
         attachment_ids = self.attachment_id.ids 
         action = self.env.ref('sign_dochub.ds_attachment_action').read()[0]
@@ -374,4 +378,16 @@ class DsDocument(models.Model):
             'view_mode': 'list',
         'domain': [('document_id', '=', self.id)],
         'target': 'current',
+        }
+    def action_open_sign_position(self):
+        """Open the full-screen sign position editor (client action)"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'ds_sign_position_editor',
+            'target': 'main',
+            'context': {
+                'document_id': self.id,
+            },
+            'name': 'Đặt vị trí ký',
         }
