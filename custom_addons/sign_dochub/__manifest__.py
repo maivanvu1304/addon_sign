@@ -19,6 +19,7 @@ Long description of module's purpose
         'views/ds_document_template_views.xml',
         'views/ds_document_menus.xml',
         'views/ds_attachment_views.xml',
+        'views/ds_document_portal_templates.xml',
     ],
     'assets': {
         'web.assets_backend': [

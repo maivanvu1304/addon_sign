@@ -1,7 +1,13 @@
+import base64
+import io
 import uuid
 
 from odoo import models, fields, api
+from odoo.exceptions import UserError
+import logging
+from markupsafe import Markup
 
+_logger = logging.getLogger(__name__)
 
 class DsDocumentRequestItem(models.Model):
     _name = 'ds.document.request.item'
@@ -72,13 +78,96 @@ class DsDocumentRequestItem(models.Model):
         for item in self:
             item.is_current_user = item.user_id.id == self.env.uid
 
+    def _burn_signature_to_pdf(self, document):
+        """Burns the signature text onto the PDF and updates signed_attachment_id."""
+        try:
+            from PyPDF2 import PdfReader, PdfWriter
+            from reportlab.pdfgen import canvas
+            from reportlab.lib.colors import blue
+        except ImportError:
+            raise UserError("Thiếu thư viện PyPDF2 hoặc reportlab. Không thể ký PDF.")
+
+        if not document.attachment_id:
+            return
+
+        # Lấy file PDF nguồn (file đã ký nếu có, hoặc file gốc)
+        source_attachment = document.signed_attachment_id or document.attachment_id[0]
+        pdf_content = base64.b64decode(source_attachment.datas)
+        pdf_reader = PdfReader(io.BytesIO(pdf_content))
+        pdf_writer = PdfWriter()
+
+        page_num = self.page_number - 1 if self.page_number > 0 else 0
+        if page_num >= len(pdf_reader.pages):
+            page_num = len(pdf_reader.pages) - 1
+
+        for i in range(len(pdf_reader.pages)):
+            page = pdf_reader.pages[i]
+            
+            if i == page_num:
+                # Tạo watermark chữ ký bằng ReportLab
+                packet = io.BytesIO()
+                # Kích thước trang PDF (points)
+                width = float(page.mediabox.width)
+                height = float(page.mediabox.height)
+                
+                can = canvas.Canvas(packet, pagesize=(width, height))
+                can.setFillColor(blue)
+                can.setFont("Helvetica-Bold", 16)
+                
+                # Tọa độ từ UI màn hình (thường là top-left) cần chuyển đổi sang (bottom-left) của PDF
+                # UI scale thường khác với PDF points, nhưng tạm dùng trực tiếp or fixed tỉ lệ
+                # Lấy tên đã ký từ note (được set từ UI javascript)
+                signer_name = self.user_id.name or self.name or "Signed"
+                if self.note and self.note.startswith("Đã ký bằng tên: "):
+                    signer_name = self.note.replace("Đã ký bằng tên: ", "").strip()
+                
+                # Reportlab gốc toạ độ (0,0) ở góc dưới bên trái. UI toạ độ (0,0) ở góc trên bên trái.
+                # height * 1.5 - y (do scale 1.5 trên JS)
+                # Tạm thời convert X, Y thô
+                pdf_x = self.signature_pos_x / 1.5  # JS scale is 1.5
+                pdf_y = height - (self.signature_pos_y / 1.5) - 20 # -20 to adjust text baseline
+
+                can.drawString(pdf_x, pdf_y, signer_name)
+                can.setFont("Helvetica", 10)
+                can.drawString(pdf_x, pdf_y - 12, "Signed on: " + fields.Datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                can.save()
+
+                packet.seek(0)
+                watermark_pdf = PdfReader(packet)
+                watermark_page = watermark_pdf.pages[0]
+                
+                page.merge_page(watermark_page)
+                
+            pdf_writer.add_page(page)
+
+        # Lưu file PDF mới
+        output = io.BytesIO()
+        pdf_writer.write(output)
+        output_data = base64.b64encode(output.getvalue())
+
+        # Tạo hoặc cập nhật attachment đã ký
+        if document.signed_attachment_id:
+            document.signed_attachment_id.write({'datas': output_data})
+        else:
+            new_attachment = self.env['ir.attachment'].create({
+                'name': f"{document.name}_signed.pdf",
+                'type': 'binary',
+                'datas': output_data,
+                'res_model': 'ds.document',
+                'res_id': document.id,
+                'mimetype': 'application/pdf'
+            })
+            document.write({'signed_attachment_id': new_attachment.id})
+
     def action_approve(self):
         """Approve/Sign this step"""
-        self.write({
-            'state': 'done',
-            'date_action': fields.Datetime.now(),
-        })
         for item in self:
+            item.write({
+                'state': 'done',
+                'date_action': fields.Datetime.now(),
+            })
+            if item.signature_pos_x or item.signature_pos_y:
+                item._burn_signature_to_pdf(item.document_id)
             item.document_id._activate_next_step()
 
     def action_reject(self):
@@ -90,7 +179,7 @@ class DsDocumentRequestItem(models.Model):
         for item in self:
             item.document_id.write({'state': 'rejected'})
             item.document_id.message_post(
-                body=f"Step '{item.name}' rejected by {item.user_id.name}. Note: {item.note or ''}",
+                body=Markup(f"Step '{item.name}' rejected by {item.user_id.name}. Note: {item.note or ''}"),
                 message_type='notification',
             )
 
@@ -195,8 +284,7 @@ class DsDocumentRequestItem(models.Model):
 
             # Log vào chatter
             item.document_id.message_post(
-                body=f"📧 Đã gửi email yêu cầu <b>{role_label}</b> tới <b>{email_to}</b> cho bước <b>{item.name or role_label}</b>.",
-                message_type='comment',
-                subtype_xmlid='mail.mt_note',
+                body=Markup(f"📧 Đã gửi email yêu cầu <b>{role_label}</b> tới <b>{email_to}</b> cho bước <b>{item.name or role_label}</b>."),
+                message_type='notification',
             )
         
