@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="ds_sign.SignDocumentEditor">
+        <div class="ds_sign_position_editor d-flex flex-column h-100 bg-light">
+
+            <!-- HEADER BAR -->
+            <div class="ds_editor__header d-flex align-items-center px-3 py-2 bg-white border-bottom shadow-sm">
+                <button class="btn btn-sm btn-light border" t-on-click="backToDocument">
+                    <i class="fa fa-arrow-left me-1"/> Quay lại
+                </button>
+                <div class="ds_editor__title fw-bold text-truncate flex-grow-1 ms-3">
+                    Ký chứng từ
+                </div>
+                <!-- Page navigation -->
+                <div class="ds_editor__page-nav d-flex align-items-center me-3">
+                    <button class="btn btn-sm btn-light border" t-on-click="prevPage" t-att-disabled="state.currentPage === 1">
+                        <i class="fa fa-chevron-up"/>
+                    </button>
+                    <span class="ds_editor__page-info text-muted mx-2">
+                        <t t-esc="state.currentPage"/> / <t t-esc="state.totalPages"/>
+                    </span>
+                    <button class="btn btn-sm btn-light border" t-on-click="nextPage" t-att-disabled="state.currentPage === state.totalPages">
+                        <i class="fa fa-chevron-down"/>
+                    </button>
+                </div>
+                <button class="btn btn-sm btn-success" t-on-click="submitSignature" t-att-disabled="!state.hasSigned">
+                    <i class="fa fa-paper-plane me-1"/> Hoàn tất ký
+                </button>
+            </div>
+
+            <!-- MAIN CONTENT -->
+            <div class="d-flex flex-grow-1 overflow-hidden" style="height: calc(100vh - 55px);">
+                <!-- PDF VIEWER AREA -->
+                <div class="ds_editor__pdf-area flex-grow-1 overflow-auto d-flex justify-content-center align-items-start p-4 bg-secondary bg-opacity-10">
+                    <t t-if="state.loading">
+                        <div class="ds_editor__loading d-flex justify-content-center align-items-center h-100 w-100">
+                            <i class="fa fa-spinner fa-spin fa-2x text-muted"/>
+                        </div>
+                    </t>
+
+                    <t t-else="">
+                        <div class="ds_editor__pdf-container position-relative bg-white shadow-sm"
+                             t-ref="pdfContainer">
+                            <canvas t-ref="pdfCanvas"/>
+
+                            <t t-foreach="state.signers" t-as="signer" t-key="signer.item_id">
+                                <t t-if="signer.placed and signer.page === state.currentPage">
+                                    <div class="ds_sign_box position-absolute d-flex flex-column justify-content-center align-items-center rounded"
+                                         t-on-click="() => this.onClickSignBox(signer)"
+                                         t-att-style="
+                                             'left:' + signer.x + 'px;' +
+                                             'top:' + signer.y + 'px;' +
+                                             'width: 160px; height: 60px;' +
+                                             'background:' + (signer.state === 'done_local' ? '#e8f5e9' : (signer.state === 'pending' ? '#fff3e0' : '#f8f9fa')) + ';' +
+                                             'border: 2px ' + (signer.state === 'pending' and signer.is_current_user ? 'dashed ' + signer.color : 'solid ' + signer.color) + ';' +
+                                             'cursor:' + (signer.state === 'pending' and signer.is_current_user ? 'pointer' : 'default') + ';' +
+                                             (signer.state === 'pending' and signer.is_current_user ? 'box-shadow: 0 0 10px ' + signer.color + 'aa;' : '') +
+                                             'z-index: 10;' +
+                                             'transition: all 0.2s;'
+                                         ">
+                                         
+                                        <t t-if="signer.signing">
+                                            <div class="w-100 px-1">
+                                                <input type="text" class="form-control form-control-sm text-center" 
+                                                    placeholder="Nhập tên"
+                                                    t-att-value="signer.signedName"
+                                                    t-on-input="(ev) => this.onSignNameInput(ev, signer)"
+                                                    t-on-keyup="(ev) => this.onSignNameEnter(ev, signer)"
+                                                    autofocus="autofocus"
+                                                    style="font-size: 13px;" />
+                                                <div class="text-muted text-center mt-1" style="font-size: 9px;">Nhấn Enter để xác nhận</div>
+                                            </div>
+                                        </t>
+                                        <t t-elif="signer.state === 'done_local'">
+                                            <div class="fw-bold" t-att-style="'color:' + signer.color + '; font-size: 1.2em; font-family: cursive;'">
+                                                <t t-esc="signer.signedName"/>
+                                            </div>
+                                            <div class="text-muted" style="font-size: 10px;">Đã ký</div>
+                                        </t>
+                                        <t t-else="">
+                                            <div class="fw-bold" t-att-style="'color:' + signer.color + ';'">
+                                                <t t-esc="signer.name"/>
+                                            </div>
+                                            <div t-if="signer.state === 'pending' and signer.is_current_user" class="text-muted" style="font-size: 11px;">
+                                                Click để ký
+                                            </div>
+                                            <div t-elif="signer.state === 'pending'" class="text-muted" style="font-size: 11px;">
+                                                Đang chờ
+                                            </div>
+                                            <div t-elif="signer.state === 'done'" class="text-success" style="font-size: 11px;">
+                                                Đã ký
+                                            </div>
+                                        </t>
+                                    </div>
+                                </t>
+                            </t>
+                        </div>
+                    </t>
+
+                    <t t-if="!state.pdfUrl and !state.loading">
+                        <div class="alert alert-warning mt-4">
+                            Không tìm thấy file PDF đính kèm. Vui lòng đính kèm file trước.
+                        </div>
+                    </t>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

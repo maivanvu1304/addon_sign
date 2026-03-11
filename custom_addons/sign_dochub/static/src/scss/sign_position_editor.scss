@@ -1,0 +1,158 @@
+// DS Sign Position Editor Styles
+
+.ds_sign_position_editor {
+    height: 100vh;
+    background: #f5f5f5;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+    canvas {
+        display: block;
+        user-select: none;
+        -webkit-user-drag: none;
+    }
+}
+
+// Header bar
+.ds_editor__header {
+    gap: 12px;
+    min-height: 52px;
+}
+
+.ds_editor__title {
+    font-size: 15px;
+}
+
+.ds_editor__page-nav {
+    gap: 6px;
+}
+
+.ds_editor__page-info {
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+// Sidebar
+.ds_editor__sidebar {
+    width: 200px;
+    min-width: 200px;
+    overflow-y: auto;
+    padding: 12px;
+}
+
+.ds_editor__sidebar-title {
+    font-size: 13px;
+    color: #555;
+}
+
+// Signer card
+.ds_signer_card {
+    transition: box-shadow 0.15s;
+    cursor: default;
+
+    &:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+}
+
+.ds_signer_card__header {
+    font-size: 12px;
+}
+
+.ds_signer_card__body {
+    font-size: 11px;
+    background: #fff;
+}
+
+.ds_signer_card__drag-handle {
+    cursor: grab;
+}
+
+.ds_signer_card__drag-text {
+    font-size: 11px;
+    color: #666;
+}
+
+// PDF viewer area
+.ds_editor__pdf-area {
+    background: #e8e8e8;
+    position: relative;
+}
+
+.ds_editor__loading {
+    height: 400px;
+}
+
+// PDF container
+.ds_editor__pdf-container {
+    position: relative;
+    display: inline-block;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+}
+
+// Sign box overlay
+.ds_sign_box {
+    position: absolute;
+    width: 160px;
+    min-height: 60px;
+    border-radius: 4px;
+    cursor: move;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    user-select: none;
+    z-index: 10;
+    padding: 6px 8px;
+    transition: box-shadow 0.1s;
+
+    &:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        z-index: 20 !important;
+    }
+}
+
+.ds_sign_box__label {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    font-size: 10px;
+    opacity: 0.85;
+}
+
+.ds_sign_box__remove {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.ds_sign_box__name {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.ds_sign_box__state {
+    font-size: 11px;
+    opacity: 0.9;
+}
+
+.ds_sign_box__add-btn {
+    position: absolute;
+    left: -14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+}

@@ -1,0 +1,127 @@
+// DS PDF Preview Panel — embedded in form chatter area
+
+// Override Odoo form view layout when PDF preview is active
+// Force the chatter area to expand and fill the right side
+.o_form_view:has(.ds_pdf_preview_panel) {
+    .o_form_sheet_bg {
+        // Allow form content to shrink so preview gets more space
+        flex: 0 1 auto !important;
+        min-width: 480px;
+    }
+
+    .o_chatter {
+        flex: 1 1 50% !important;
+        max-width: none !important;
+        width: auto !important;
+        padding: 0 !important;
+        border-left: 1px solid #dee2e6;
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100% !important;
+        overflow: hidden !important;
+    }
+
+    // In 2-column layout (FormRenderer), override the aside/chatter container
+    .o-form-buttonbox+.o_chatter,
+    .o_FormRenderer_chatterContainer {
+        flex: 1 1 50% !important;
+        max-width: none !important;
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100% !important;
+        overflow: hidden !important;
+    }
+}
+
+.ds_pdf_preview_panel {
+    flex: 1;
+    min-height: 500px;
+    width: 100%; // Fill the entire chatter area
+    position: relative;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+    canvas {
+        display: block;
+        user-select: none;
+    }
+}
+
+// Panel header
+.ds_pdf_preview__header {
+    gap: 8px;
+    min-height: 44px;
+}
+
+.ds_pdf_preview__title {
+    font-size: 13px;
+    color: #333;
+}
+
+.ds_pdf_preview__page-nav {
+    gap: 4px;
+
+    .fa {
+        font-size: 11px;
+    }
+}
+
+.ds_pdf_preview__page-info {
+    font-size: 12px;
+    color: #666;
+    white-space: nowrap;
+}
+
+// PDF Canvas area
+.ds_pdf_preview__canvas-area {
+    background: #e0e0e0;
+}
+
+.ds_pdf_preview__loading {
+    height: 200px;
+}
+
+.ds_pdf_preview__no-pdf {
+    font-size: 12px;
+}
+
+// PDF container (canvas wrapper)
+.ds_pdf_preview__pdf-container {
+    position: relative;
+    display: inline-block;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+// Signature overlay box (read-only)
+.ds_sign_overlay_box {
+    position: absolute;
+    width: 150px;
+    min-height: 56px;
+    border: 2px solid;
+    border-radius: 3px;
+    z-index: 10;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 6px;
+    transition: box-shadow 0.1s;
+
+    &:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        z-index: 20 !important;
+    }
+}
+
+.ds_sign_overlay_box__name {
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    word-break: break-word;
+}
+
+.ds_sign_overlay_box__state {
+    color: white;
+    font-size: 10px;
+    opacity: 0.9;
+}

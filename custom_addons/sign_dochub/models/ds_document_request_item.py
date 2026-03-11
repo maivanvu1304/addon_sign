@@ -18,7 +18,7 @@ class DsDocumentRequestItem(models.Model):
     name = fields.Char(string='Step Name')
     role = fields.Selection(
         selection=[
-            ('sign', 'Ký'),
+            ('sign', 'Ký số'),
             ('approve', 'Phê duyệt'),
         ],
         string='Role',
@@ -95,5 +95,108 @@ class DsDocumentRequestItem(models.Model):
             )
 
     def _send_notification_email(self):
-        """Send email notification to signer (placeholder for mail template)"""
-        pass
+        """Send email notification to signer"""
+        # Lấy email từ SMTP server đã cấu hình (để tránh bị Gmail reject)
+        smtp_server = self.env['ir.mail_server'].sudo().search([], order='sequence asc', limit=1)
+        smtp_email_from = smtp_server.smtp_user if smtp_server and smtp_server.smtp_user else None
+
+        for item in self:
+            # Xác định email nhận
+            email_to = None
+            if item.email:
+                email_to = item.email
+            elif item.user_id and item.user_id.email:
+                email_to = item.user_id.email
+            elif item.partner_id and item.partner_id.email:
+                email_to = item.partner_id.email
+
+            if not email_to:
+                continue
+
+            doc = item.document_id
+            company = doc.company_id or self.env.company
+
+            # email_from luôn dùng SMTP account để Gmail không reject
+            email_from = smtp_email_from or company.email or self.env.user.email or 'noreply@example.com'
+
+            # Build portal URL
+            base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
+            portal_url = f"{base_url}/web#id={doc.id}&model=ds.document&view_type=form"
+
+            role_label = dict(item._fields['role'].selection).get(item.role, '')
+            create_date_str = doc.create_date.strftime('%Y-%m-%d %H:%M:%S') if doc.create_date else ''
+
+            table_rows = f"""
+                <tr>
+                    <td style="padding:8px;border:1px solid #555;">1</td>
+                    <td style="padding:8px;border:1px solid #555;">
+                        <a href="{portal_url}" style="color:#4e9af1;">{doc.name}</a>
+                    </td>
+                    <td style="padding:8px;border:1px solid #555;">{role_label}</td>
+                    <td style="padding:8px;border:1px solid #555;">{doc.creator_id.name or ''}</td>
+                    <td style="padding:8px;border:1px solid #555;">{create_date_str}</td>
+                    <td style="padding:8px;border:1px solid #555;">{doc.name}</td>
+                </tr>
+            """
+
+            recipient_name = (
+                item.user_id.name
+                or (item.partner_id.name if item.partner_id else None)
+                or email_to
+            )
+
+            body_html = f"""
+            <div style="font-family:Arial,sans-serif;max-width:800px;margin:auto;">
+                <div style="background-color:#2d5fa6;padding:20px;text-align:center;">
+                    <h2 style="color:white;margin:0;">{company.name}</h2>
+                </div>
+                <div style="background-color:#1a1a2e;color:#e0e0e0;padding:24px;">
+                    <p>Kính chào {recipient_name},</p>
+                    <p>Chứng từ <strong>{doc.name}</strong> đang chờ, vui lòng nhấn vào chứng từ hoặc sử dụng Mã xử lý ở bên dưới để xử lý chứng từ.</p>
+                    <table style="width:100%;border-collapse:collapse;margin:16px 0;color:#e0e0e0;">
+                        <thead>
+                            <tr style="background-color:#333;">
+                                <th style="padding:8px;border:1px solid #555;text-align:left;">STT</th>
+                                <th style="padding:8px;border:1px solid #555;text-align:left;">Mã chứng từ</th>
+                                <th style="padding:8px;border:1px solid #555;text-align:left;">Quyền xử lý</th>
+                                <th style="padding:8px;border:1px solid #555;text-align:left;">Người tạo</th>
+                                <th style="padding:8px;border:1px solid #555;text-align:left;">Ngày tạo</th>
+                                <th style="padding:8px;border:1px solid #555;text-align:left;">Mã xử lý</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {table_rows}
+                        </tbody>
+                    </table>
+                    <p>Hạn xử lý bằng link và mã xử lý:</p>
+                    <p>Vui lòng truy cập vào hệ thống để xử lý chứng từ.</p>
+                    <p><strong>Xin chân thành cảm ơn.</strong></p>
+                </div>
+                <div style="background-color:#f5f5f5;color:#888;padding:12px;text-align:center;font-size:12px;">
+                    <p>Đây là email tự động, vui lòng không trả lời lại thư này.</p>
+                    <p>Xin cảm ơn</p>
+                    <br/>
+                    <p><strong>Powered by</strong></p>
+                    <p>{company.street or ''}, {company.city or ''}</p>
+                    <p>{company.name} version 1.0</p>
+                </div>
+            </div>
+            """
+
+            mail_values = {
+                'subject': f"Chứng từ {doc.name} đang chờ {role_label}",
+                'email_to': email_to,
+                'email_from': email_from,
+                'reply_to': email_from,
+                'body_html': body_html,
+                'auto_delete': True,
+            }
+            self.env['mail.mail'].sudo().create(mail_values).send()
+
+            # Log vào chatter
+            item.document_id.message_post(
+                body=f"📧 Đã gửi email yêu cầu <b>{role_label}</b> tới <b>{email_to}</b> cho bước <b>{item.name or role_label}</b>.",
+                message_type='comment',
+                subtype_xmlid='mail.mt_note',
+            )
+        
