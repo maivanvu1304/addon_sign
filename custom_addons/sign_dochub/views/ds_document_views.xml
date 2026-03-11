@@ -11,7 +11,7 @@
             <field name="arch" type="xml">
                 <list string="Documents"
                       decoration-info="state == 'draft'"
-                      decoration-warning="state in ('in_progress', 'adjusting', 'sign')"
+                      decoration-warning="state in ('in_progress', 'adjusting')"
                       decoration-success="state == 'done'"
                       decoration-danger="state in ('cancelled', 'rejected')">
                     <field name="name" string="Mã chứng từ"/>
@@ -22,7 +22,7 @@
                     <field name="date_deadline" string="Hạn chót"/>
                     <field name="state" string="Trạng thái" widget="badge"
                            decoration-info="state == 'draft'"
-                           decoration-warning="state in ('in_progress', 'adjusting', 'sign')"
+                           decoration-warning="state in ('in_progress', 'adjusting')"
                            decoration-success="state == 'done'"
                            decoration-danger="state in ('cancelled', 'rejected')"/>
                 </list>
@@ -53,23 +53,23 @@
                         <!-- adjusting -->
                         <button name="action_open_sign_position" string="Đặt vị trí ký"
                                 type="object" 
-                                invisible="state != 'adjusting'"/>
+                                invisible="state != 'adjusting' or position_confirmed"/>
                         <button name="action_reset_positions" string="Reset vị trí ký"
                                 type="object"
-                                invisible="state != 'adjusting'"/>
+                                invisible="state != 'adjusting' or position_confirmed"/>
                         <button name="action_confirm_positions" string="Gửi quy trình"
                                 type="object" class="btn-primary"
-                                invisible="state != 'adjusting'"/>
-                        <!-- sign -->
+                                invisible="state != 'adjusting' or position_confirmed"/>
+                        <!-- sign actions -->
                         <button name="action_send_sign_request" string="Gửi yêu cầu kí"
                                 type="object" 
-                                invisible="state != 'sign'"/>
+                                invisible="state != 'adjusting' or not position_confirmed"/>
                         <button name="action_reject_document" string="Từ chối"
                                 type="object" class="btn-danger"
-                                invisible="state != 'sign'"/>
+                                invisible="state != 'adjusting' or not position_confirmed"/>
                         <button name="action_request_resign" string="Yêu cầu kí lại"
                                 type="object" class="btn-primary"
-                                invisible="state != 'sign'"/>
+                                invisible="state != 'adjusting' or not position_confirmed"/>
                         <!-- done -->
                         <button name="action_publish" string="Ban hành kết quả"
                                 type="object" class="btn-success"
@@ -78,8 +78,9 @@
                         <button name="action_reset_to_draft" string="Đưa về nháp"
                                 type="object"
                                 invisible="state not in ('rejected', 'cancelled')"/>
+                        <field name="position_confirmed" invisible="1"/>
                         <field name="state" widget="statusbar"
-                               statusbar_visible="draft,in_progress,adjusting,sign,done,rejected,cancelled"/>
+                               statusbar_visible="draft,in_progress,adjusting,done,rejected,cancelled"/>
                     </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box">
@@ -110,7 +111,7 @@
                         </div>
 
                         <!-- ===== ADJUSTING STATE: Simplified Layout ===== -->
-                        <group invisible="state != 'adjusting' and state != 'sign'">
+                        <group invisible="state != 'adjusting'">
                             <separator string="THÔNG TIN" colspan="2"/>
                             <group string="CHỨNG TỪ">
                                 <field name="document_type_id" string="Chứng từ" readonly="1"/>
@@ -122,12 +123,12 @@
                                 <field name="password" string="Mật khẩu"/>
                             </group>
                         </group>
-                        <group invisible="state != 'adjusting' and state != 'sign'">
+                        <group invisible="state != 'adjusting'">
                             <separator string="THÔNG TIN NGƯỜI KÝ" colspan="2"/>
                             <field name="current_signer_id" string="Người ký" readonly="1"/>
                         </group>
-                        <field name="state" string="Trạng thái" invisible="state != 'adjusting' and state != 'sign'"/>
-                        <notebook invisible="state != 'adjusting' and state != 'sign'">
+                        <field name="state" string="Trạng thái" invisible="state != 'adjusting'"/>
+                        <notebook invisible="state != 'adjusting'">
                             <page string="Quy trình nội bộ" name="page_adjusting_process">
                                 <div class="mb-3">
                                     <button name="save_as_template" string="Lưu mẫu quy trình"
@@ -156,7 +157,7 @@
                         </notebook>
 
                         <!-- ===== NORMAL STATE: Full Layout (hidden during adjusting) ===== -->
-                        <notebook invisible="state == 'adjusting' and state =='sign'">
+                        <notebook invisible="state == 'adjusting'">
                             <!-- ===== Tab: Thông tin ===== -->
                             <page string="Thông tin" name="page_info">
                                 <group>
@@ -263,7 +264,7 @@
                         </notebook>
                     </sheet>
 
-                    <div class="o_chatter" name="chatter_area" invisible="state != 'adjusting' and state != 'sign'">
+                    <div class="o_chatter" name="chatter_area" invisible="state != 'adjusting'">
                         <widget name="ds_pdf_preview"/>
                     </div>
 
@@ -291,8 +292,6 @@
                             domain="[('state', '=', 'in_progress')]"/>
                     <filter string="Adjusting" name="filter_adjusting"
                             domain="[('state', '=', 'adjusting')]"/>
-                    <filter string="Signing" name="filter_sign"
-                            domain="[('state', '=', 'sign')]"/>
                     <filter string="Done" name="filter_done"
                             domain="[('state', '=', 'done')]"/>
                     <filter string="Rejected" name="filter_rejected"
@@ -339,7 +338,7 @@
             <field name="res_model">ds.document</field>
             <field name="view_mode">list,form</field>
             <field name="search_view_id" ref="ds_document_view_search"/>
-            <field name="domain">[('state', 'in', ('in_progress', 'sign'))]</field>
+            <field name="domain">[('state', 'in', ('in_progress', 'adjusting'))]</field>
         </record>
 
     </data>

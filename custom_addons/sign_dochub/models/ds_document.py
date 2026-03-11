@@ -97,12 +97,16 @@ class DsDocument(models.Model):
     )
 
     # Group D — Workflow & System
+    position_confirmed = fields.Boolean(
+        string='Đã chốt vị trí ký',
+        default=False,
+        tracking=True,
+    )
     state = fields.Selection(
         selection=[
             ('draft', 'Chứng từ mới'),
             ('in_progress', 'Đang xử lý'),
             ('adjusting', 'Đang điều chỉnh'),
-            ('sign', 'Đang ký'),
             ('done', 'Đã hoàn tất'),
             ('rejected', 'Từ chối'),
             ('cancelled', 'Đã hủy'),
@@ -240,7 +244,7 @@ class DsDocument(models.Model):
 
     def action_adjust(self):
         """Button [Đặt vị trí ký]: Switch to adjusting state"""
-        self.write({'state': 'adjusting'})
+        self.write({'state': 'adjusting', 'position_confirmed': False})
 
     def action_reset_positions(self):
         """Button [Reset vị trí ký]: Clear signature positions"""
@@ -251,21 +255,28 @@ class DsDocument(models.Model):
         })
 
     def action_confirm_positions(self):
-        """Button [Gửi quy trình]: Finish adjusting → switch to 'sign' state and activate first step"""
+        """Button [Gửi quy trình]: Finish adjusting"""
         for doc in self:
-            doc.write({'state': 'sign'})
+            doc.write({'position_confirmed': True})
             has_started = any(item.state != 'draft' for item in doc.request_item_ids)
             if not has_started:
                 doc._activate_next_step()
 
     def action_send_sign_request(self):
-        """Button [Gửi yêu cầu kí]: Send/Resend notification to current pending user"""
-        for doc in self:
-            pending_item = doc.request_item_ids.filtered(lambda i: i.state == 'pending')
-            if pending_item:
-                pending_item._send_notification_email()
-            else:
-                raise UserError("Không có người nhận nào đang chờ ký.")
+        """Mở UI để người đầu tiên thực hiện ký"""
+        self.ensure_one()
+        if not self.attachment_id:
+            raise UserError("Vui lòng đính kèm tệp chứng từ trước khi ký.")
+        
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'ds_sign_document',
+            'target': 'main',
+            'context': {
+                'document_id': self.id,
+            },
+            'name': 'Ký chứng từ',
+        }
 
     def action_reject_document(self):
         """Button [Từ chối]: Change state to rejected"""
@@ -284,7 +295,7 @@ class DsDocument(models.Model):
         """Button [Yêu cầu ký lại]: Reset steps and resend"""
         for doc in self:
             doc.request_item_ids.write({'state': 'draft', 'date_action': False})
-            doc.write({'state': 'sign'})
+            doc.write({'position_confirmed': True})
             doc._activate_next_step()
 
     def action_cancel(self):
@@ -296,7 +307,7 @@ class DsDocument(models.Model):
 
     def action_reset_to_draft(self):
         """Reset to draft state"""
-        self.write({'state': 'draft'})
+        self.write({'state': 'draft', 'position_confirmed': False})
         self.request_item_ids.write({'state': 'draft', 'date_action': False, 'date_sent': False})
 
     def action_share(self):

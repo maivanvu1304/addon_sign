@@ -28,6 +28,8 @@ Long description of module's purpose
             'sign_dochub/static/src/js/ds_pdf_preview.js',
             'sign_dochub/static/src/xml/ds_pdf_preview.xml',
             'sign_dochub/static/src/scss/ds_pdf_preview.scss',
+            'sign_dochub/static/src/js/sign_document.js',
+            'sign_dochub/static/src/xml/sign_document.xml',
         ],
     },
     'application': True,
