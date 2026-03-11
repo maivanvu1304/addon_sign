@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="ds_document_portal_template" name="Document Portal View">
+        <t t-call="portal.portal_layout">
+            <t t-set="additional_title">Document <t t-esc="document.name"/></t>
+            
+            <div id="document_content" class="container mt-4 mb-5">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">
+                            <i class="fa fa-file-text-o me-2"/>
+                            <t t-esc="document.title or document.name"/>
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <strong>Mã chứng từ:</strong> <span t-esc="document.name"/><br/>
+                                <strong>Trạng thái:</strong> <span class="badge bg-success">Đã hoàn tất</span><br/>
+                                <strong>Ngày tạo:</strong> <span t-field="document.create_date" t-options='{"widget": "datetime"}'/>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <a t-if="document.signed_attachment_id or document.attachment_id" 
+                                   t-attf-href="/my/documents/#{document.id}/download?access_token=#{token}"
+                                   class="btn btn-outline-primary">
+                                    <i class="fa fa-download me-1"/> Tải PDF
+                                </a>
+                            </div>
+                        </div>
+
+                        <hr/>
+
+                        <h5 class="mt-4 mb-3">Xem trước chứng từ</h5>
+                        
+                        <div class="document-preview bg-light p-3 rounded" style="min-height: 600px; text-align: center;">
+                            <t t-if="document.signed_attachment_id or document.attachment_id">
+                                <iframe t-attf-src="/my/documents/#{document.id}/download?access_token=#{token}" 
+                                        width="100%" height="800px" style="border: none;"></iframe>
+                            </t>
+                            <t t-else="">
+                                <div class="alert alert-warning">
+                                    Không có file đính kèm để xem trước.
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

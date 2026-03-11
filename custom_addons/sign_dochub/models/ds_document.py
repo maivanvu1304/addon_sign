@@ -1,5 +1,5 @@
 from odoo import models, fields, api
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 
 class DsDocument(models.Model):
@@ -288,6 +288,8 @@ class DsDocument(models.Model):
     def action_publish(self):
         """Button [Ban hành kết quả]: Send email to all customers"""
         for doc in self:
+            if not doc.customer_ids:
+                raise ValidationError("Vui lòng thêm khách hàng trong tab Quy trình khách hàng trước khi ban hành kết quả.")
             for customer in doc.customer_ids:
                 customer.action_send_customer_email()
 
