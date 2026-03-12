@@ -59,7 +59,7 @@
                                 invisible="state != 'adjusting' or position_confirmed"/>
                         <button name="action_confirm_positions" string="Gửi quy trình"
                                 type="object" class="btn-primary"
-                                invisible="state != 'adjusting' or position_confirmed"/>
+                                invisible="state != 'adjusting' or position_confirmed or not sign_positions_set"/>
                         <!-- sign actions -->
                         <button name="action_send_sign_request" string="Gửi yêu cầu kí"
                                 type="object" 
@@ -167,7 +167,7 @@
                                         <field name="department_id"/>
                                         <field name="related_document_id"/>
                                         <field name="description"/>
-                                        <field name="coordinator_id"/>
+                                        <field name="coordinator_id" />
                                         <field name="viewer_ids" widget="many2many_tags"/>
                                     </group>
                                     <group string="TỆP CHỨNG TỪ">

@@ -26,9 +26,6 @@
                 <button class="btn btn-sm btn-primary" t-on-click="savePositions">
                     <i class="fa fa-save me-1"/> Lưu vị trí
                 </button>
-                <button class="btn btn-sm btn-success" t-on-click="confirmAndContinue">
-                    <i class="fa fa-check me-1"/> Gửi quy trình
-                </button>
             </div>
 
             <!-- MAIN CONTENT -->

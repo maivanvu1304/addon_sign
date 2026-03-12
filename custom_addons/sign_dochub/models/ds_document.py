@@ -184,7 +184,34 @@ class DsDocument(models.Model):
         string='Lịch sử ký',
         compute='_compute_sign_history_count'
     )
+    
+    sign_positions_set = fields.Boolean(
+        string='Đã đặt vị trí ký',
+        compute='_compute_sign_positions_set',
+        help='True khi tất cả bước ký đã có tọa độ vị trí hợp lệ',
+    )
 
+    @api.depends(
+        'request_item_ids',
+        'request_item_ids.signature_pos_x',
+        'request_item_ids.signature_pos_y',
+        'request_item_ids.page_number',
+    )
+    def _compute_sign_positions_set(self):
+        """
+        True khi:
+          - Có ít nhất 1 request item
+          - Mọi item đều có tọa độ ký khác 0 (đã được đặt qua editor)
+        """
+        for doc in self:
+            items = doc.request_item_ids
+            if not items:
+                doc.sign_positions_set = False
+                continue
+            doc.sign_positions_set = all(
+                (item.signature_pos_x or 0) != 0 or (item.signature_pos_y or 0) != 0
+                for item in items
+            )
     @api.depends('attachment_id', 'related_attachment_ids')
     def _compute_attachment_count(self):
         for rec in self:
@@ -253,14 +280,6 @@ class DsDocument(models.Model):
             'signature_pos_y': 0,
             'page_number': 1,
         })
-
-    def action_confirm_positions(self):
-        """Button [Gửi quy trình]: Finish adjusting"""
-        for doc in self:
-            doc.write({'position_confirmed': True})
-            has_started = any(item.state != 'draft' for item in doc.request_item_ids)
-            if not has_started:
-                doc._activate_next_step()
 
     def action_send_sign_request(self):
         """Mở UI để người đầu tiên thực hiện ký"""
@@ -404,3 +423,44 @@ class DsDocument(models.Model):
             },
             'name': 'Đặt vị trí ký',
         }
+    def action_confirm_positions(self):
+        """
+        Button [Gửi quy trình]: Finish adjusting.
+
+        Yêu cầu bắt buộc:
+          1. Phải có ít nhất 1 request item.
+          2. Tất cả request items phải đã đặt vị trí ký
+             (signature_pos_x hoặc signature_pos_y khác 0).
+             Nếu chưa → raise UserError hướng dẫn người dùng
+             nhấn "Đặt vị trí ký" trước.
+        """
+        for doc in self:
+            # --- Kiểm tra 1: phải có bước ký ---
+            if not doc.request_item_ids:
+                raise UserError(
+                    "Vui lòng thêm ít nhất một bước ký trước khi gửi quy trình."
+                )
+
+            # --- Kiểm tra 2: tất cả bước phải đã đặt vị trí ký ---
+            missing = doc.request_item_ids.filtered(
+                lambda i: not (
+                    (i.signature_pos_x or 0) != 0
+                    or (i.signature_pos_y or 0) != 0
+                )
+            )
+            if missing:
+                signers = ', '.join(
+                    item.user_id.name or f'Bước {item.sequence}'
+                    for item in missing
+                )
+                raise UserError(
+                    f"Bạn chưa đặt vị trí ký cho: {signers}.\n\n"
+                    "Vui lòng nhấn nút «Đặt vị trí ký» để xác định vị trí "
+                    "chữ ký trên tài liệu trước khi gửi quy trình."
+                )
+
+            # --- Tất cả hợp lệ → tiếp tục ---
+            doc.write({'position_confirmed': True})
+            has_started = any(item.state != 'draft' for item in doc.request_item_ids)
+            if not has_started:
+                doc._activate_next_step()

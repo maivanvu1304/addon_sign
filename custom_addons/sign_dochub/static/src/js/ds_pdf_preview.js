@@ -1,7 +1,7 @@
 /** @odoo-module **/
 
 import { registry } from "@web/core/registry";
-import { Component, useState, onMounted, onWillUpdateProps, useRef, useEffect } from "@odoo/owl";
+import { Component, useState, useRef, useEffect } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 
 
@@ -10,6 +10,9 @@ const SIGNER_COLORS = [
     '#e91e8c', '#2196f3', '#4caf50', '#ff9800',
     '#9c27b0', '#00bcd4', '#f44336', '#795548',
 ];
+const POSITION_EDITOR_SCALE = 1.5;
+const OVERLAY_BOX_WIDTH = 150;
+const OVERLAY_BOX_HEIGHT = 56;
 
 // ============================================================
 // PDF Preview Panel Widget
@@ -24,6 +27,7 @@ export class DsPdfPreviewPanel extends Component {
         this.notification = useService("notification");
         this.canvasRef = useRef("pdfCanvas");
         this.containerRef = useRef("pdfContainer");
+        this.canvasAreaRef = useRef("canvasArea");
 
         this.state = useState({
             signers: [],
@@ -31,6 +35,9 @@ export class DsPdfPreviewPanel extends Component {
             totalPages: 1,
             pdfUrl: null,
             loading: false,
+            renderScale: POSITION_EDITOR_SCALE,
+            canvasWidth: 0,
+            canvasHeight: 0,
         });
 
         // Reload khi record thay đổi
@@ -152,18 +159,48 @@ export class DsPdfPreviewPanel extends Component {
         if (!canvas) return;
 
         const page = await this.pdfDoc.getPage(pageNum);
-        const container = this.containerRef.el;
-        const containerWidth = container ? container.offsetWidth - 4 : 600;
+        const canvasArea = this.canvasAreaRef.el;
+        const availableWidth = canvasArea ? canvasArea.clientWidth : 0;
+        // Fit page width to the right panel instead of using the old inline container width.
+        const containerWidth = Math.max(320, (availableWidth || 600) - 16);
         const unscaledViewport = page.getViewport({ scale: 1 });
-        const scale = containerWidth / unscaledViewport.width;
+        const scale = Math.max(0.1, containerWidth / unscaledViewport.width);
         const viewport = page.getViewport({ scale });
 
         canvas.width = viewport.width;
         canvas.height = viewport.height;
-        this.currentScale = scale;
+        this.state.renderScale = scale;
+        this.state.canvasWidth = viewport.width;
+        this.state.canvasHeight = viewport.height;
 
         const ctx = canvas.getContext('2d');
         await page.render({ canvasContext: ctx, viewport }).promise;
+    }
+
+    getSignerStyle(signer) {
+        const ratio = (this.state.renderScale || POSITION_EDITOR_SCALE) / POSITION_EDITOR_SCALE;
+        const boxWidth = OVERLAY_BOX_WIDTH * ratio;
+        const boxHeight = OVERLAY_BOX_HEIGHT * ratio;
+
+        let left = (signer.x || 0) * ratio;
+        let top = (signer.y || 0) * ratio;
+
+        if (this.state.canvasWidth) {
+            left = Math.min(Math.max(left, 0), Math.max(0, this.state.canvasWidth - boxWidth));
+        }
+        if (this.state.canvasHeight) {
+            top = Math.min(Math.max(top, 0), Math.max(0, this.state.canvasHeight - boxHeight));
+        }
+
+        return [
+            `left:${left}px`,
+            `top:${top}px`,
+            `width:${boxWidth}px`,
+            `min-height:${boxHeight}px`,
+            `padding:${Math.max(2, 4 * ratio)}px ${Math.max(3, 6 * ratio)}px`,
+            `background:${signer.color}bb`,
+            `border-color:${signer.color}`,
+        ].join(";");
     }
 
     _loadScript(src) {
