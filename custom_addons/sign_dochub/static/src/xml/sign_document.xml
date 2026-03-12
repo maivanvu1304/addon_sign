@@ -24,7 +24,7 @@
                     </button>
                 </div>
                 <button class="btn btn-sm btn-success" t-on-click="submitSignature" t-att-disabled="!state.hasSigned">
-                    <i class="fa fa-paper-plane me-1"/> Hoàn tất ký
+                    <i class="fa fa-paper-plane me-1"/> Xac nhan chu ky
                 </button>
             </div>
 

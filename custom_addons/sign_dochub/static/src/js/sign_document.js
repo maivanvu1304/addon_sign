@@ -162,16 +162,12 @@ class SignDocumentEditor extends Component {
             this.notification.add("Không có chữ ký nào mới để gửi.", { type: "warning" });
             return;
         }
-
-        // Call action_approve on this item
-        await this.orm.call('ds.document.request.item', 'action_approve', [[signedItem.item_id]]);
-
-        // Cập nhật note thành tên người dùng đã ký
+        // Save typed signature first; transition to done happens when user clicks header button.
         await this.orm.write('ds.document.request.item', [signedItem.item_id], {
             note: "Đã ký bằng tên: " + signedItem.signedName,
         });
 
-        this.notification.add("Ký thành công!", { type: "success" });
+        this.notification.add("Da ghi nhan chu ky. Quay lai va bam Hoan tat ky.", { type: "success" });
         this.backToDocument();
     }
 
