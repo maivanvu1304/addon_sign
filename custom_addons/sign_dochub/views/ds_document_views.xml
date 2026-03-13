@@ -72,7 +72,7 @@
                                 invisible="state != 'adjusting' or not position_confirmed"/>
                         <button name="action_request_resign" string="Yêu cầu kí lại"
                                 type="object" class="btn-primary"
-                                invisible="state != 'adjusting' or not position_confirmed"/>
+                                invisible="state != 'adjusting' or not position_confirmed or not can_request_resign"/>
                         <!-- done -->
                         <button name="action_publish" string="Ban hành kết quả"
                                 type="object" class="btn-success"
@@ -82,7 +82,9 @@
                                 type="object"
                                 invisible="state not in ('rejected', 'cancelled')"/>
                         <field name="position_confirmed" invisible="1"/>
+                        <field name="sign_positions_set" invisible="1"/>
                         <field name="can_finish_sign_step" invisible="1"/>
+                        <field name="can_request_resign" invisible="1"/>
                         <field name="state" widget="statusbar"
                                statusbar_visible="draft,in_progress,adjusting,done,rejected,cancelled"/>
                     </header>

@@ -197,6 +197,11 @@ class DsDocument(models.Model):
         compute='_compute_can_finish_sign_step',
         help='True khi có thể bấm nút Hoàn tất ký để chuyển sang bước kế tiếp',
     )
+    can_request_resign = fields.Boolean(
+        string='Can Request Resign',
+        compute='_compute_can_request_resign',
+        help='True khi có thể yêu cầu bước ký trước đó ký lại',
+    )
 
     @api.depends(
         'request_item_ids',
@@ -271,6 +276,20 @@ class DsDocument(models.Model):
                 and bool(doc.request_item_ids)
                 and (has_signed_pending or (has_done and not has_pending))
             )
+
+    @api.depends('state', 'position_confirmed', 'request_item_ids', 'request_item_ids.state', 'request_item_ids.sequence')
+    def _compute_can_request_resign(self):
+        for doc in self:
+            doc.can_request_resign = False
+            if doc.state != 'adjusting' or not doc.position_confirmed:
+                continue
+
+            ordered_items = doc.request_item_ids.sorted(lambda i: (i.sequence, i.id))
+            pending_index = next(
+                (idx for idx, item in enumerate(ordered_items) if item.state == 'pending'),
+                None,
+            )
+            doc.can_request_resign = pending_index is not None and pending_index > 0
 
     # ==================== CRUD ====================
 
@@ -389,9 +408,21 @@ class DsDocument(models.Model):
                 customer.action_send_customer_email()
 
     def action_request_resign(self):
-        """Button [Yêu cầu ký lại]: Reset steps and resend"""
+        """Button [Yêu cầu ký lại]: chỉ yêu cầu bước ngay trước bước đang chờ ký ký lại"""
         for doc in self:
-            doc.request_item_ids.write({
+            ordered_items = doc.request_item_ids.sorted(lambda i: (i.sequence, i.id))
+            pending_index = next(
+                (idx for idx, item in enumerate(ordered_items) if item.state == 'pending'),
+                None,
+            )
+
+            if pending_index is None:
+                raise UserError("Không có bước nào đang chờ ký để yêu cầu ký lại.")
+            if pending_index == 0:
+                raise UserError("Bước đầu tiên không thể yêu cầu ký lại.")
+
+            items_to_reset = ordered_items[pending_index - 1:]
+            items_to_reset.write({
                 'state': 'draft',
                 'date_action': False,
                 'date_sent': False,

@@ -56,7 +56,11 @@ export class DsPdfPreviewPanel extends Component {
             () => {
                 const rec = this.props.record;
                 if (rec && rec.data) {
-                    return [rec.data.state, rec.resId || rec.data.id];
+                    return [
+                        rec.data.state,
+                        rec.resId || rec.data.id,
+                        rec.data.sign_positions_set,
+                    ];
                 }
                 return [];
             }
@@ -87,6 +91,7 @@ export class DsPdfPreviewPanel extends Component {
         }
 
         try {
+            this.state.signers = [];
             // Load attachment_id (Many2many) via ORM — most reliable approach
             const [doc] = await this.orm.read('ds.document', [docId], ['attachment_id']);
             console.log('[DsPdfPreview] ORM read attachment_id result:', doc);
@@ -97,6 +102,7 @@ export class DsPdfPreviewPanel extends Component {
                 this.state.pdfUrl = `/web/content/${attachId}?download=false`;
                 console.log('[DsPdfPreview] PDF URL set:', this.state.pdfUrl);
             } else {
+                this.state.pdfUrl = null;
                 console.warn('[DsPdfPreview] No attachments found for document', docId);
             }
 
