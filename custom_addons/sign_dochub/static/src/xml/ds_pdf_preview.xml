@@ -55,7 +55,7 @@
 
                             <!-- Signature position boxes (read-only overlay) -->
                             <t t-foreach="state.signers" t-as="signer" t-key="'box_' + signer.item_id">
-                                <t t-if="signer.placed and signer.page === state.currentPage">
+                                <t t-if="signer.requiresPosition and signer.placed and signer.page === state.currentPage">
                                     <div class="ds_sign_overlay_box"
                                          t-att-style="getSignerStyle(signer)">
                                         <div class="ds_sign_overlay_box__name text-center">

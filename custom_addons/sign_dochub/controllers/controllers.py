@@ -1,6 +1,7 @@
 from odoo import http
 from odoo.http import request
-from werkzeug.exceptions import Forbidden, NotFound
+from odoo.tools import str2bool
+from werkzeug.exceptions import NotFound
 
 class DsDocumentPortal(http.Controller):
     
@@ -34,7 +35,7 @@ class DsDocumentPortal(http.Controller):
         return request.render('sign_dochub.ds_document_portal_template', values)
 
     @http.route(['/my/documents/<int:document_id>/download'], type='http', auth='public')
-    def portal_download_document(self, document_id, access_token=None, **kw):
+    def portal_download_document(self, document_id, access_token=None, download=False, **kw):
         customer_record = request.env['ds.document.customer'].sudo().search([
             ('document_id', '=', document_id),
             ('verification_code', '=', access_token)
@@ -50,12 +51,12 @@ class DsDocumentPortal(http.Controller):
         if not attachment:
             raise NotFound()
 
-        status, headers, content = request.env['ir.http'].sudo().binary_content(
-            id=attachment.id,
-            model='ir.attachment',
-            field='datas',
+        stream = request.env['ir.binary'].sudo()._get_stream_from(
+            attachment.sudo(),
+            'raw',
+            filename=attachment.name,
             filename_field='name',
-            download=True,
+            mimetype=attachment.mimetype,
         )
-
-        return request.make_response(content, headers)
+        stream.public = True
+        return stream.get_response(as_attachment=str2bool(download))

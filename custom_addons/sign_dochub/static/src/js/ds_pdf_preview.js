@@ -119,6 +119,7 @@ export class DsPdfPreviewPanel extends Component {
                 console.log('[DsPdfPreview] Loaded signers:', items);
 
                 this.state.signers = items.map((item, idx) => ({
+                    requiresPosition: (item.role || 'sign') !== 'approve',
                     item_id: item.id,
                     name: item.user_id ? item.user_id[1] : (item.name || `Người ký ${idx + 1}`),
                     role: item.role || 'sign',
@@ -127,7 +128,7 @@ export class DsPdfPreviewPanel extends Component {
                     page: item.page_number || 1,
                     x: item.signature_pos_x || 0,
                     y: item.signature_pos_y || 0,
-                    placed: !!(item.signature_pos_x || item.signature_pos_y),
+                    placed: (item.role || 'sign') === 'approve' ? false : !!(item.signature_pos_x || item.signature_pos_y),
                 }));
             }
 

@@ -53,18 +53,26 @@
                                     <t t-esc="signer.state === 'done' ? 'Đã ký' : signer.state === 'pending' ? 'Đang chờ' : 'Nhập'"/>
                                 </div>
                                 <div class="text-muted mb-1">
-                                    Ký số: <span t-att-style="'color:' + signer.color" class="fw-semibold">Ký số</span>
+                                    Vai trò:
+                                    <span t-att-style="'color:' + signer.color" class="fw-semibold">
+                                        <t t-esc="signer.role === 'approve' ? 'Phê duyệt' : 'Ký số'"/>
+                                    </span>
                                 </div>
                                 <div class="text-muted">Giờ ký: —</div>
                             </div>
                             <!-- Drag handle: kéo vào PDF -->
-                            <div class="ds_signer_card__drag-handle px-2 py-1 text-center"
+                            <div t-if="signer.requiresPosition"
+                                 class="ds_signer_card__drag-handle px-2 py-1 text-center"
                                  t-att-style="'background:' + signer.color + '22;'"
                                  draggable="true"
                                  t-on-dragstart="(e) =&gt; this.onSignerDragStart(e, signer_index)">
                                 <span class="ds_signer_card__drag-text">
                                     <i class="fa fa-arrows me-1"/>Kéo vào PDF
                                 </span>
+                            </div>
+                            <div t-else=""
+                                 class="ds_signer_card__drag-handle px-2 py-1 text-center text-muted">
+                                Không cần vị trí ký
                             </div>
                         </div>
                     </t>
@@ -94,7 +102,7 @@
 
                             <!-- Signature position overlays -->
                             <t t-foreach="state.signers" t-as="signer" t-key="signer.item_id">
-                                <t t-if="signer.placed and signer.page === state.currentPage">
+                                <t t-if="signer.requiresPosition and signer.placed and signer.page === state.currentPage">
                                     <div class="ds_sign_box"
                                          t-att-style="
                                              'left:' + signer.x + 'px;' +

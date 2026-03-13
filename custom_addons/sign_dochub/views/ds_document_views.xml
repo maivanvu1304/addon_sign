@@ -63,10 +63,14 @@
                         <!-- sign actions -->
                         <button name="action_send_sign_request" string="Gửi yêu cầu kí"
                                 type="object" 
-                                invisible="state != 'adjusting' or not position_confirmed or can_finish_sign_step"/>
+                                invisible="state != 'adjusting' or not position_confirmed or can_finish_sign_step or current_signer_role != 'sign'"/>
                         <button name="action_finish_sign_step" string="Hoàn tất ký"
                                 type="object" class="btn-success"
-                                invisible="state != 'adjusting' or not position_confirmed or not can_finish_sign_step"/>
+                                invisible="state != 'adjusting' or not position_confirmed or not can_finish_sign_step or current_signer_role != 'sign'"/>
+                        <!-- approve actions -->
+                        <button name="action_approve_step" string="Duyệt"
+                                type="object" class="btn-success"
+                                invisible="state != 'adjusting' or not position_confirmed or current_signer_role != 'approve'"/>
                         <button name="action_reject_document" string="Từ chối"
                                 type="object" class="btn-danger"
                                 invisible="state != 'adjusting' or not position_confirmed"/>
@@ -85,6 +89,7 @@
                         <field name="sign_positions_set" invisible="1"/>
                         <field name="can_finish_sign_step" invisible="1"/>
                         <field name="can_request_resign" invisible="1"/>
+                        <field name="current_signer_role" invisible="1"/>
                         <field name="state" widget="statusbar"
                                statusbar_visible="draft,in_progress,adjusting,done,rejected,cancelled"/>
                     </header>

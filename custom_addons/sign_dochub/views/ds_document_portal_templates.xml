@@ -21,7 +21,7 @@
                             </div>
                             <div class="col-md-6 text-end">
                                 <a t-if="document.signed_attachment_id or document.attachment_id" 
-                                   t-attf-href="/my/documents/#{document.id}/download?access_token=#{token}"
+                                   t-attf-href="/my/documents/#{document.id}/download?access_token=#{token}&amp;download=true"
                                    class="btn btn-outline-primary">
                                     <i class="fa fa-download me-1"/> Tải PDF
                                 </a>

@@ -166,7 +166,7 @@ class DsDocumentRequestItem(models.Model):
                 'state': 'done',
                 'date_action': fields.Datetime.now(),
             })
-            if item.signature_pos_x or item.signature_pos_y:
+            if item.role != 'approve' and (item.signature_pos_x or item.signature_pos_y):
                 item._burn_signature_to_pdf(item.document_id)
 
     def action_reject(self):

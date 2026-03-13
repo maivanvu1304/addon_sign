@@ -57,10 +57,11 @@ class SignPositionEditor extends Component {
             role: item.role || 'sign',
             state: item.state,
             color: SIGNER_COLORS[idx % SIGNER_COLORS.length],
-            page: item.page_number || 1,
-            x: item.signature_pos_x || 0,
-            y: item.signature_pos_y || 0,
-            placed: !!(item.signature_pos_x || item.signature_pos_y),
+            requiresPosition: (item.role || 'sign') !== 'approve',
+            page: (item.role || 'sign') === 'approve' ? 1 : (item.page_number || 1),
+            x: (item.role || 'sign') === 'approve' ? 0 : (item.signature_pos_x || 0),
+            y: (item.role || 'sign') === 'approve' ? 0 : (item.signature_pos_y || 0),
+            placed: (item.role || 'sign') === 'approve' ? false : !!(item.signature_pos_x || item.signature_pos_y),
         }));
 
         this.state.signers = signers;
@@ -143,7 +144,9 @@ class SignPositionEditor extends Component {
         const y = e.clientY - rect.top;
 
         // Check xem có click vào box nào không
-        const signers = this.state.signers.filter(s => s.page === this.state.currentPage && s.placed);
+        const signers = this.state.signers.filter(
+            s => s.requiresPosition && s.page === this.state.currentPage && s.placed
+        );
         for (let i = signers.length - 1; i >= 0; i--) {
             const s = signers[i];
             if (x >= s.x && x <= s.x + 160 && y >= s.y && y <= s.y + 60) {
@@ -169,17 +172,23 @@ class SignPositionEditor extends Component {
 
     // Kéo signer từ sidebar thả vào PDF
     onSignerDragStart(e, idx) {
+        if (!this.state.signers[idx].requiresPosition) {
+            e.preventDefault();
+            return;
+        }
         e.dataTransfer.setData('signerIdx', idx);
     }
 
     onCanvasDrop(e) {
         e.preventDefault();
         const idx = parseInt(e.dataTransfer.getData('signerIdx'));
+        if (Number.isNaN(idx)) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
         const signer = this.state.signers[idx];
+        if (!signer || !signer.requiresPosition) return;
         signer.x = x;
         signer.y = y;
         signer.page = this.state.currentPage;
@@ -193,6 +202,7 @@ class SignPositionEditor extends Component {
     // Xóa vị trí
     removeSignerPosition(idx) {
         const signer = this.state.signers[idx];
+        if (!signer || !signer.requiresPosition) return;
         signer.placed = false;
         signer.x = 0;
         signer.y = 0;
@@ -204,9 +214,9 @@ class SignPositionEditor extends Component {
         const docId = this.state.documentId;
         const updates = this.state.signers.map(s => ({
             item_id: s.item_id,
-            x: s.x,
-            y: s.y,
-            page: s.page,
+            x: s.requiresPosition ? s.x : 0,
+            y: s.requiresPosition ? s.y : 0,
+            page: s.requiresPosition ? s.page : 1,
         }));
 
         // Ghi từng item
