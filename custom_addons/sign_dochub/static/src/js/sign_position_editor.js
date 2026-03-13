@@ -221,19 +221,6 @@ class SignPositionEditor extends Component {
         this.notification.add("Đã lưu vị trí chữ ký!", { type: "success" });
     }
 
-    async confirmAndContinue() {
-        await this.savePositions();
-        // Confirm positions → back to in_progress
-        await this.orm.call('ds.document', 'action_confirm_positions', [[this.state.documentId]]);
-        this.action.doAction({
-            type: 'ir.actions.act_window',
-            res_model: 'ds.document',
-            res_id: this.state.documentId,
-            views: [[false, 'form']],
-            target: 'current',
-        });
-    }
-
     backToDocument() {
         this.action.doAction({
             type: 'ir.actions.act_window',

@@ -31,7 +31,8 @@
                 </div>
 
                 <!-- PDF Canvas area -->
-                <div class="ds_pdf_preview__canvas-area flex-grow-1 overflow-auto d-flex justify-content-center align-items-start p-2">
+                <div class="ds_pdf_preview__canvas-area flex-grow-1 overflow-auto d-flex justify-content-center align-items-start p-2"
+                     t-ref="canvasArea">
 
                     <t t-if="state.loading">
                         <div class="ds_pdf_preview__loading d-flex justify-content-center align-items-center w-100">
@@ -56,12 +57,7 @@
                             <t t-foreach="state.signers" t-as="signer" t-key="'box_' + signer.item_id">
                                 <t t-if="signer.placed and signer.page === state.currentPage">
                                     <div class="ds_sign_overlay_box"
-                                         t-att-style="
-                                             'left:' + signer.x + 'px;' +
-                                             'top:' + signer.y + 'px;' +
-                                             'background:' + signer.color + 'bb;' +
-                                             'border-color:' + signer.color + ';'
-                                         ">
+                                         t-att-style="getSignerStyle(signer)">
                                         <div class="ds_sign_overlay_box__name text-center">
                                             <t t-esc="signer.name"/>
                                         </div>

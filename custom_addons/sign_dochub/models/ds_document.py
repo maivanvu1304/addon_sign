@@ -1,6 +1,8 @@
 from odoo import models, fields, api
 from odoo.exceptions import UserError, ValidationError
 
+SIGNED_NOTE_PREFIX = 'Đã ký bằng tên: '
+
 
 class DsDocument(models.Model):
     _name = 'ds.document'
@@ -184,7 +186,44 @@ class DsDocument(models.Model):
         string='Lịch sử ký',
         compute='_compute_sign_history_count'
     )
+    
+    sign_positions_set = fields.Boolean(
+        string='Đã đặt vị trí ký',
+        compute='_compute_sign_positions_set',
+        help='True khi tất cả bước ký đã có tọa độ vị trí hợp lệ',
+    )
+    can_finish_sign_step = fields.Boolean(
+        string='Can Finish Sign Step',
+        compute='_compute_can_finish_sign_step',
+        help='True khi có thể bấm nút Hoàn tất ký để chuyển sang bước kế tiếp',
+    )
+    can_request_resign = fields.Boolean(
+        string='Can Request Resign',
+        compute='_compute_can_request_resign',
+        help='True khi có thể yêu cầu bước ký trước đó ký lại',
+    )
 
+    @api.depends(
+        'request_item_ids',
+        'request_item_ids.signature_pos_x',
+        'request_item_ids.signature_pos_y',
+        'request_item_ids.page_number',
+    )
+    def _compute_sign_positions_set(self):
+        """
+        True khi:
+          - Có ít nhất 1 request item
+          - Mọi item đều có tọa độ ký khác 0 (đã được đặt qua editor)
+        """
+        for doc in self:
+            items = doc.request_item_ids
+            if not items:
+                doc.sign_positions_set = False
+                continue
+            doc.sign_positions_set = all(
+                (item.signature_pos_x or 0) != 0 or (item.signature_pos_y or 0) != 0
+                for item in items
+            )
     @api.depends('attachment_id', 'related_attachment_ids')
     def _compute_attachment_count(self):
         for rec in self:
@@ -221,6 +260,37 @@ class DsDocument(models.Model):
                 lambda i: i.state == 'done'
             ))
 
+    @api.depends('state', 'position_confirmed', 'request_item_ids', 'request_item_ids.state', 'request_item_ids.note')
+    def _compute_can_finish_sign_step(self):
+        for doc in self:
+            pending_items = doc.request_item_ids.filtered(lambda i: i.state == 'pending')
+            has_pending = bool(pending_items)
+            has_signed_pending = any(
+                (item.note or '').startswith(SIGNED_NOTE_PREFIX)
+                for item in pending_items
+            )
+            has_done = any(item.state == 'done' for item in doc.request_item_ids)
+            doc.can_finish_sign_step = (
+                doc.state == 'adjusting'
+                and doc.position_confirmed
+                and bool(doc.request_item_ids)
+                and (has_signed_pending or (has_done and not has_pending))
+            )
+
+    @api.depends('state', 'position_confirmed', 'request_item_ids', 'request_item_ids.state', 'request_item_ids.sequence')
+    def _compute_can_request_resign(self):
+        for doc in self:
+            doc.can_request_resign = False
+            if doc.state != 'adjusting' or not doc.position_confirmed:
+                continue
+
+            ordered_items = doc.request_item_ids.sorted(lambda i: (i.sequence, i.id))
+            pending_index = next(
+                (idx for idx, item in enumerate(ordered_items) if item.state == 'pending'),
+                None,
+            )
+            doc.can_request_resign = pending_index is not None and pending_index > 0
+
     # ==================== CRUD ====================
 
     @api.model_create_multi
@@ -254,19 +324,33 @@ class DsDocument(models.Model):
             'page_number': 1,
         })
 
-    def action_confirm_positions(self):
-        """Button [Gửi quy trình]: Finish adjusting"""
-        for doc in self:
-            doc.write({'position_confirmed': True})
-            has_started = any(item.state != 'draft' for item in doc.request_item_ids)
-            if not has_started:
-                doc._activate_next_step()
-
     def action_send_sign_request(self):
         """Mở UI để người đầu tiên thực hiện ký"""
         self.ensure_one()
         if not self.attachment_id:
             raise UserError("Vui lòng đính kèm tệp chứng từ trước khi ký.")
+
+        pending_item = self.request_item_ids.filtered(
+            lambda i: i.state == 'pending'
+        ).sorted('sequence')[:1]
+        if pending_item and (pending_item.note or '').startswith(SIGNED_NOTE_PREFIX):
+            raise UserError(
+                'Bước ký hiện tại đã ký xong. Vui lòng bấm "Hoàn tất ký" để chuyển sang bước tiếp theo.'
+            )
+        if not pending_item:
+            draft_items = self.request_item_ids.filtered(lambda i: i.state == 'draft')
+            done_items = self.request_item_ids.filtered(lambda i: i.state == 'done')
+            if done_items and draft_items:
+                raise UserError(
+                    'Bước ký hiện tại đã hoàn tất. Vui lòng bấm "Hoàn tất ký" để chuyển sang bước tiếp theo.'
+                )
+            if done_items and not draft_items:
+                raise UserError(
+                    'Tất cả bước ký đã hoàn tất. Vui lòng bấm "Hoàn tất ký" để kết thúc chứng từ.'
+                )
+            raise UserError(
+                'Chưa có bước ký nào ở trạng thái chờ. Vui lòng kiểm tra lại quy trình ký.'
+            )
         
         return {
             'type': 'ir.actions.client',
@@ -277,6 +361,36 @@ class DsDocument(models.Model):
             },
             'name': 'Ký chứng từ',
         }
+
+    def action_finish_sign_step(self):
+        """
+        Button [Hoàn tất ký]:
+        - Luồng mới: pending đã ký (ghi note) -> done -> kích hoạt bước kế
+        - Luồng cũ tương thích: không còn pending nhưng có done -> kích hoạt bước kế
+        """
+        for doc in self:
+            if doc.state != 'adjusting' or not doc.position_confirmed:
+                raise UserError(
+                    "Chỉ có thể hoàn tất ký khi chứng từ đang ở trạng thái Điều chỉnh và đã gửi quy trình."
+                )
+
+            pending_item = doc.request_item_ids.filtered(
+                lambda i: i.state == 'pending'
+            ).sorted('sequence')[:1]
+            if pending_item:
+                if not (pending_item.note or '').startswith(SIGNED_NOTE_PREFIX):
+                    raise UserError(
+                        "Bước ký hiện tại chưa hoàn tất. Vui lòng vào màn ký để ký trước."
+                    )
+                pending_item.action_approve()
+                doc._activate_next_step()
+                continue
+
+            if not doc.request_item_ids.filtered(lambda i: i.state == 'done'):
+                raise UserError(
+                    "Chưa có bước ký nào hoàn tất để chuyển sang bước tiếp theo."
+                )
+            doc._activate_next_step()
 
     def action_reject_document(self):
         """Button [Từ chối]: Change state to rejected"""
@@ -294,9 +408,26 @@ class DsDocument(models.Model):
                 customer.action_send_customer_email()
 
     def action_request_resign(self):
-        """Button [Yêu cầu ký lại]: Reset steps and resend"""
+        """Button [Yêu cầu ký lại]: chỉ yêu cầu bước ngay trước bước đang chờ ký ký lại"""
         for doc in self:
-            doc.request_item_ids.write({'state': 'draft', 'date_action': False})
+            ordered_items = doc.request_item_ids.sorted(lambda i: (i.sequence, i.id))
+            pending_index = next(
+                (idx for idx, item in enumerate(ordered_items) if item.state == 'pending'),
+                None,
+            )
+
+            if pending_index is None:
+                raise UserError("Không có bước nào đang chờ ký để yêu cầu ký lại.")
+            if pending_index == 0:
+                raise UserError("Bước đầu tiên không thể yêu cầu ký lại.")
+
+            items_to_reset = ordered_items[pending_index - 1:]
+            items_to_reset.write({
+                'state': 'draft',
+                'date_action': False,
+                'date_sent': False,
+                'note': False,
+            })
             doc.write({'position_confirmed': True})
             doc._activate_next_step()
 
@@ -310,7 +441,12 @@ class DsDocument(models.Model):
     def action_reset_to_draft(self):
         """Reset to draft state"""
         self.write({'state': 'draft', 'position_confirmed': False})
-        self.request_item_ids.write({'state': 'draft', 'date_action': False, 'date_sent': False})
+        self.request_item_ids.write({
+            'state': 'draft',
+            'date_action': False,
+            'date_sent': False,
+            'note': False,
+        })
 
     def action_share(self):
         """Button [Chia sẻ tài liệu]: Generate portal link (placeholder)"""
@@ -404,3 +540,44 @@ class DsDocument(models.Model):
             },
             'name': 'Đặt vị trí ký',
         }
+    def action_confirm_positions(self):
+        """
+        Button [Gửi quy trình]: Finish adjusting.
+
+        Yêu cầu bắt buộc:
+          1. Phải có ít nhất 1 request item.
+          2. Tất cả request items phải đã đặt vị trí ký
+             (signature_pos_x hoặc signature_pos_y khác 0).
+             Nếu chưa → raise UserError hướng dẫn người dùng
+             nhấn "Đặt vị trí ký" trước.
+        """
+        for doc in self:
+            # --- Kiểm tra 1: phải có bước ký ---
+            if not doc.request_item_ids:
+                raise UserError(
+                    "Vui lòng thêm ít nhất một bước ký trước khi gửi quy trình."
+                )
+
+            # --- Kiểm tra 2: tất cả bước phải đã đặt vị trí ký ---
+            missing = doc.request_item_ids.filtered(
+                lambda i: not (
+                    (i.signature_pos_x or 0) != 0
+                    or (i.signature_pos_y or 0) != 0
+                )
+            )
+            if missing:
+                signers = ', '.join(
+                    item.user_id.name or f'Bước {item.sequence}'
+                    for item in missing
+                )
+                raise UserError(
+                    f"Bạn chưa đặt vị trí ký cho: {signers}.\n\n"
+                    "Vui lòng nhấn nút «Đặt vị trí ký» để xác định vị trí "
+                    "chữ ký trên tài liệu trước khi gửi quy trình."
+                )
+
+            # --- Tất cả hợp lệ → tiếp tục ---
+            doc.write({'position_confirmed': True})
+            has_started = any(item.state != 'draft' for item in doc.request_item_ids)
+            if not has_started:
+                doc._activate_next_step()

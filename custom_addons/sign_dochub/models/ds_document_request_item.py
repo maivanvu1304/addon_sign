@@ -168,7 +168,6 @@ class DsDocumentRequestItem(models.Model):
             })
             if item.signature_pos_x or item.signature_pos_y:
                 item._burn_signature_to_pdf(item.document_id)
-            item.document_id._activate_next_step()
 
     def action_reject(self):
         """Reject this step"""
