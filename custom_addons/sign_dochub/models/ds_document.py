@@ -564,13 +564,18 @@ class DsDocument(models.Model):
         return action
     
     def action_view_sign_history(self):
+        self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
             'name': 'Lịch sử ký',
-            'res_model': 'ds.sign.log',  # model lịch sử của bạn
-            'view_mode': 'list',
-        'domain': [('document_id', '=', self.id)],
-        'target': 'current',
+            'res_model': 'mail.message',
+            'view_mode': 'list,form',
+            'domain': [
+                ('res_id', '=', self.id),
+                ('model', '=', 'ds.document'),
+                ('message_type', '=', 'notification'),
+            ],
+            'target': 'current',
         }
     def action_open_sign_position(self):
         """Open the full-screen sign position editor (client action)"""
