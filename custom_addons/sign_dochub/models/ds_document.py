@@ -53,7 +53,6 @@ class DsDocument(models.Model):
         'document_id',
         'attachment_id',
         string='File gốc',
-        required=True,
     )
     signed_attachment_id = fields.Many2one(
         'ir.attachment',
@@ -167,6 +166,14 @@ class DsDocument(models.Model):
         string='Current Step State',
         compute='_compute_current_signer',
     )
+    current_signer_role = fields.Selection(
+        selection=[
+            ('sign', 'Ký số'),
+            ('approve', 'Phê duyệt'),
+        ],
+        string='Current Signer Role',
+        compute='_compute_current_signer',
+    )
     item_count = fields.Integer(
         string='Total Steps',
         compute='_compute_item_count',
@@ -213,16 +220,20 @@ class DsDocument(models.Model):
         """
         True khi:
           - Có ít nhất 1 request item
-          - Mọi item đều có tọa độ ký khác 0 (đã được đặt qua editor)
+          - Với các bước cần ký (role != approve), phải có tọa độ ký khác 0
         """
         for doc in self:
             items = doc.request_item_ids
             if not items:
                 doc.sign_positions_set = False
                 continue
+            sign_items = items.filtered(lambda item: item.role != 'approve')
+            if not sign_items:
+                doc.sign_positions_set = True
+                continue
             doc.sign_positions_set = all(
                 (item.signature_pos_x or 0) != 0 or (item.signature_pos_y or 0) != 0
-                for item in items
+                for item in sign_items
             )
     @api.depends('attachment_id', 'related_attachment_ids')
     def _compute_attachment_count(self):
@@ -243,7 +254,7 @@ class DsDocument(models.Model):
 
     # ==================== Computed Methods ====================
 
-    @api.depends('request_item_ids', 'request_item_ids.state', 'request_item_ids.user_id')
+    @api.depends('request_item_ids', 'request_item_ids.state', 'request_item_ids.user_id', 'request_item_ids.role')
     def _compute_current_signer(self):
         for doc in self:
             current_item = doc.request_item_ids.filtered(
@@ -251,6 +262,7 @@ class DsDocument(models.Model):
             )[:1]
             doc.current_signer_id = current_item.user_id if current_item else False
             doc.current_signer_state = current_item.state if current_item else False
+            doc.current_signer_role = current_item.role if current_item else False
 
     @api.depends('request_item_ids', 'request_item_ids.state')
     def _compute_item_count(self):
@@ -298,19 +310,54 @@ class DsDocument(models.Model):
         for vals in vals_list:
             if vals.get('name', 'New') == 'New':
                 vals['name'] = self.env['ir.sequence'].next_by_code('ds.document') or 'New'
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        records._sync_attachment_binding()
+        return records
+
+    def write(self, vals):
+        result = super().write(vals)
+        if 'attachment_id' in vals or 'company_id' in vals:
+            self._sync_attachment_binding()
+        return result
 
     # ==================== Workflow Actions ====================
 
+    def _sync_attachment_binding(self):
+        """Ensure linked attachments are bound to this document for normal ACL visibility."""
+        for doc in self:
+            attachments = doc.sudo().attachment_id
+            if not attachments:
+                continue
+            # Keep existing bindings from other models intact; only fix loose or incomplete links.
+            attachments_to_fix = attachments.filtered(
+                lambda a: (not a.res_model) or (a.res_model == 'ds.document' and not a.res_id)
+            )
+            if attachments_to_fix:
+                vals = {
+                    'res_model': 'ds.document',
+                    'res_id': doc.id,
+                }
+                if doc.company_id:
+                    vals['company_id'] = doc.company_id.id
+                attachments_to_fix.sudo().write(vals)
+
     def action_start_workflow(self):
         """Button [Khởi tạo quy trình]: Validate → in_progress"""
-        for doc in self:
-            if not doc.request_item_ids:
-                raise UserError("Please add at least one workflow step before starting.")
-            doc.write({
-                'state': 'in_progress',
-                'date_request': fields.Datetime.now(),
-            })
+        self.ensure_one()
+        if not self.request_item_ids:
+            raise UserError("Please add at least one workflow step before starting.")
+        self.write({
+            'state': 'in_progress',
+            'date_request': fields.Datetime.now(),
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'ds.document',
+            'view_mode': 'form',
+            'views': [(self.env.ref('sign_dochub.ds_document_view_form').id, 'form')],
+            'res_id': self.id,
+            'target': 'current',
+        }
 
     def action_adjust(self):
         """Button [Đặt vị trí ký]: Switch to adjusting state"""
@@ -327,12 +374,17 @@ class DsDocument(models.Model):
     def action_send_sign_request(self):
         """Mở UI để người đầu tiên thực hiện ký"""
         self.ensure_one()
-        if not self.attachment_id:
+        self._sync_attachment_binding()
+        if not self.sudo().attachment_id:
             raise UserError("Vui lòng đính kèm tệp chứng từ trước khi ký.")
 
         pending_item = self.request_item_ids.filtered(
             lambda i: i.state == 'pending'
         ).sorted('sequence')[:1]
+        if pending_item and pending_item.role == 'approve':
+            raise UserError(
+                'Bước hiện tại là phê duyệt. Vui lòng bấm "Duyệt" để chuyển sang bước tiếp theo.'
+            )
         if pending_item and (pending_item.note or '').startswith(SIGNED_NOTE_PREFIX):
             raise UserError(
                 'Bước ký hiện tại đã ký xong. Vui lòng bấm "Hoàn tất ký" để chuyển sang bước tiếp theo.'
@@ -378,6 +430,10 @@ class DsDocument(models.Model):
                 lambda i: i.state == 'pending'
             ).sorted('sequence')[:1]
             if pending_item:
+                if pending_item.role == 'approve':
+                    raise UserError(
+                        'Bước hiện tại là phê duyệt. Vui lòng bấm "Duyệt" để chuyển sang bước tiếp theo.'
+                    )
                 if not (pending_item.note or '').startswith(SIGNED_NOTE_PREFIX):
                     raise UserError(
                         "Bước ký hiện tại chưa hoàn tất. Vui lòng vào màn ký để ký trước."
@@ -390,6 +446,29 @@ class DsDocument(models.Model):
                 raise UserError(
                     "Chưa có bước ký nào hoàn tất để chuyển sang bước tiếp theo."
                 )
+            doc._activate_next_step()
+
+    def action_approve_step(self):
+        """
+        Button [Duyệt]:
+        - Chỉ dùng cho bước pending có role = 'approve'
+        - Xác nhận bước hiện tại và chuyển sang bước kế tiếp
+        """
+        for doc in self:
+            if doc.state != 'adjusting' or not doc.position_confirmed:
+                raise UserError(
+                    "Chỉ có thể duyệt khi chứng từ đang ở trạng thái Điều chỉnh và đã gửi quy trình."
+                )
+
+            pending_item = doc.request_item_ids.filtered(
+                lambda i: i.state == 'pending'
+            ).sorted('sequence')[:1]
+            if not pending_item:
+                raise UserError("Không có bước nào đang chờ để duyệt.")
+            if pending_item.role != 'approve':
+                raise UserError("Bước hiện tại không phải loại Phê duyệt.")
+
+            pending_item.action_approve()
             doc._activate_next_step()
 
     def action_reject_document(self):
@@ -520,17 +599,23 @@ class DsDocument(models.Model):
         return action
     
     def action_view_sign_history(self):
+        self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
             'name': 'Lịch sử ký',
-            'res_model': 'ds.sign.log',  # model lịch sử của bạn
-            'view_mode': 'list',
-        'domain': [('document_id', '=', self.id)],
-        'target': 'current',
+            'res_model': 'mail.message',
+            'view_mode': 'list,form',
+            'domain': [
+                ('res_id', '=', self.id),
+                ('model', '=', 'ds.document'),
+                ('message_type', '=', 'notification'),
+            ],
+            'target': 'current',
         }
     def action_open_sign_position(self):
         """Open the full-screen sign position editor (client action)"""
         self.ensure_one()
+        self._sync_attachment_binding()
         return {
             'type': 'ir.actions.client',
             'tag': 'ds_sign_position_editor',
@@ -561,6 +646,8 @@ class DsDocument(models.Model):
             # --- Kiểm tra 2: tất cả bước phải đã đặt vị trí ký ---
             missing = doc.request_item_ids.filtered(
                 lambda i: not (
+                    i.role == 'approve'
+                    or
                     (i.signature_pos_x or 0) != 0
                     or (i.signature_pos_y or 0) != 0
                 )
