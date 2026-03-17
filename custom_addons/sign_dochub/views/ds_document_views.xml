@@ -94,7 +94,7 @@
                                statusbar_visible="draft,in_progress,adjusting,done,rejected,cancelled"/>
                     </header>
                     <sheet>
-                        <div class="oe_button_box" name="button_box">
+                        <div class="oe_button_box" name="button_box" invisible="state == 'draft'">
                             <!-- button files -->
                             <button class="oe_stat_button" 
                                     type="object" 
@@ -137,8 +137,9 @@
                         <group invisible="state != 'adjusting'">
                             <separator string="THÔNG TIN NGƯỜI KÝ" colspan="2"/>
                             <field name="current_signer_id" string="Người ký" readonly="1"/>
+                            <field name="state" string="Trạng thái" invisible="state != 'adjusting'"/>
                         </group>
-                        <field name="state" string="Trạng thái" invisible="state != 'adjusting'"/>
+                        
                         <notebook invisible="state != 'adjusting'">
                             <page string="Quy trình nội bộ" name="page_adjusting_process">
                                 <div class="mb-3">
@@ -166,7 +167,7 @@
                                 <!-- Sign history placeholder -->
                             </page>
                         </notebook>
-
+                        
                         <!-- ===== NORMAL STATE: Full Layout (hidden during adjusting) ===== -->
                         <notebook invisible="state == 'adjusting'">
                             <!-- ===== Tab: Thông tin ===== -->

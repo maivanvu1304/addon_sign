@@ -14,7 +14,7 @@ class DsDocumentPortal(http.Controller):
         ], limit=1)
 
         if not customer_record:
-            return request.render('website.404')
+            raise NotFound()
 
         document = customer_record.document_id
 

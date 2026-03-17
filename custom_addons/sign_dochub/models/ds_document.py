@@ -53,7 +53,6 @@ class DsDocument(models.Model):
         'document_id',
         'attachment_id',
         string='File gốc',
-        required=True,
     )
     signed_attachment_id = fields.Many2one(
         'ir.attachment',
@@ -311,19 +310,54 @@ class DsDocument(models.Model):
         for vals in vals_list:
             if vals.get('name', 'New') == 'New':
                 vals['name'] = self.env['ir.sequence'].next_by_code('ds.document') or 'New'
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        records._sync_attachment_binding()
+        return records
+
+    def write(self, vals):
+        result = super().write(vals)
+        if 'attachment_id' in vals or 'company_id' in vals:
+            self._sync_attachment_binding()
+        return result
 
     # ==================== Workflow Actions ====================
 
+    def _sync_attachment_binding(self):
+        """Ensure linked attachments are bound to this document for normal ACL visibility."""
+        for doc in self:
+            attachments = doc.sudo().attachment_id
+            if not attachments:
+                continue
+            # Keep existing bindings from other models intact; only fix loose or incomplete links.
+            attachments_to_fix = attachments.filtered(
+                lambda a: (not a.res_model) or (a.res_model == 'ds.document' and not a.res_id)
+            )
+            if attachments_to_fix:
+                vals = {
+                    'res_model': 'ds.document',
+                    'res_id': doc.id,
+                }
+                if doc.company_id:
+                    vals['company_id'] = doc.company_id.id
+                attachments_to_fix.sudo().write(vals)
+
     def action_start_workflow(self):
         """Button [Khởi tạo quy trình]: Validate → in_progress"""
-        for doc in self:
-            if not doc.request_item_ids:
-                raise UserError("Please add at least one workflow step before starting.")
-            doc.write({
-                'state': 'in_progress',
-                'date_request': fields.Datetime.now(),
-            })
+        self.ensure_one()
+        if not self.request_item_ids:
+            raise UserError("Please add at least one workflow step before starting.")
+        self.write({
+            'state': 'in_progress',
+            'date_request': fields.Datetime.now(),
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'ds.document',
+            'view_mode': 'form',
+            'views': [(self.env.ref('sign_dochub.ds_document_view_form').id, 'form')],
+            'res_id': self.id,
+            'target': 'current',
+        }
 
     def action_adjust(self):
         """Button [Đặt vị trí ký]: Switch to adjusting state"""
@@ -340,7 +374,8 @@ class DsDocument(models.Model):
     def action_send_sign_request(self):
         """Mở UI để người đầu tiên thực hiện ký"""
         self.ensure_one()
-        if not self.attachment_id:
+        self._sync_attachment_binding()
+        if not self.sudo().attachment_id:
             raise UserError("Vui lòng đính kèm tệp chứng từ trước khi ký.")
 
         pending_item = self.request_item_ids.filtered(
@@ -580,6 +615,7 @@ class DsDocument(models.Model):
     def action_open_sign_position(self):
         """Open the full-screen sign position editor (client action)"""
         self.ensure_one()
+        self._sync_attachment_binding()
         return {
             'type': 'ir.actions.client',
             'tag': 'ds_sign_position_editor',
