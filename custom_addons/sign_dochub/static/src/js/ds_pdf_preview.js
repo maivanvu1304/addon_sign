@@ -3,6 +3,9 @@
 import { registry } from "@web/core/registry";
 import { Component, useState, useRef, useEffect } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { _t } from "@web/core/l10n/translation";
+import { user } from "@web/core/user";
 
 
 // Màu cho từng signer
@@ -25,9 +28,11 @@ export class DsPdfPreviewPanel extends Component {
     setup() {
         this.orm = useService("orm");
         this.notification = useService("notification");
+        this.dialog = useService("dialog");
         this.canvasRef = useRef("pdfCanvas");
         this.containerRef = useRef("pdfContainer");
         this.canvasAreaRef = useRef("canvasArea");
+        this._accessWarningCacheKey = null;
 
         this.state = useState({
             signers: [],
@@ -49,6 +54,7 @@ export class DsPdfPreviewPanel extends Component {
                     const state = rec.data ? rec.data.state : null;
                     console.log('[DsPdfPreview] document state:', state);
                     if (state === 'adjusting') {
+                        this._warnIfWrongAccount(rec);
                         this._loadData();
                     }
                 }
@@ -60,11 +66,71 @@ export class DsPdfPreviewPanel extends Component {
                         rec.data.state,
                         rec.resId || rec.data.id,
                         rec.data.sign_positions_set,
+                        rec.data.current_signer_id,
                     ];
                 }
                 return [];
             }
         );
+    }
+
+    async _warnIfWrongAccount(record) {
+        const data = record && record.data;
+        if (!data || data.state !== 'adjusting') {
+            return;
+        }
+        const docId = record.resId || data.id;
+        if (!docId) {
+            return;
+        }
+        try {
+            const [doc] = await this.orm.read('ds.document', [docId], ['state', 'current_signer_id']);
+            if (!doc || doc.state !== 'adjusting') {
+                return;
+            }
+
+            const signerValue = doc.current_signer_id;
+            let currentSignerId = null;
+            let currentSignerName = '';
+            if (Array.isArray(signerValue)) {
+                currentSignerId = signerValue[0] || null;
+                currentSignerName = signerValue[1] || '';
+            } else if (typeof signerValue === 'number') {
+                currentSignerId = signerValue;
+            } else if (signerValue && typeof signerValue === 'object') {
+                currentSignerId = signerValue.id || signerValue.resId || null;
+                currentSignerName = signerValue.display_name || signerValue.name || '';
+            }
+
+            if (!currentSignerId || currentSignerId === user.userId) {
+                return;
+            }
+
+            const cacheKey = `${docId}:${currentSignerId}:${user.userId}`;
+            if (this._accessWarningCacheKey === cacheKey) {
+                return;
+            }
+            this._accessWarningCacheKey = cacheKey;
+
+            const bodyMessage = _t(
+                "Chứng từ này đang chờ người xử lý là \"%s\". Vui lòng đăng nhập đúng tài khoản để tiếp tục.",
+                currentSignerName || _t("người dùng khác")
+            );
+            if (this.dialog && this.dialog.add) {
+                this.dialog.add(ConfirmationDialog, {
+                    title: _t("Sai tài khoản xử lý"),
+                    body: bodyMessage,
+                    confirmLabel: _t("Đã hiểu"),
+                    cancelLabel: _t("Đóng"),
+                    confirm: () => {},
+                    cancel: () => {},
+                });
+            } else {
+                window.alert(bodyMessage);
+            }
+        } catch (error) {
+            console.error('[DsPdfPreview] access warning check error:', error);
+        }
     }
 
     get isAdjusting() {

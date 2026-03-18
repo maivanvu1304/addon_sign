@@ -209,6 +209,11 @@ class DsDocument(models.Model):
         compute='_compute_can_request_resign',
         help='True khi có thể yêu cầu bước ký trước đó ký lại',
     )
+    can_coordinate = fields.Boolean(
+        string='Can Coordinate',
+        compute='_compute_can_coordinate',
+        help='True khi người dùng hiện tại có quyền điều phối chứng từ',
+    )
 
     @api.depends(
         'request_item_ids',
@@ -303,6 +308,19 @@ class DsDocument(models.Model):
             )
             doc.can_request_resign = pending_index is not None and pending_index > 0
 
+    @api.depends('coordinator_id', 'creator_id')
+    @api.depends_context('uid')
+    def _compute_can_coordinate(self):
+        uid = self.env.uid
+        is_manager = self.env.user.has_group('sign_dochub.group_ds_manager')
+        for doc in self:
+            if is_manager:
+                doc.can_coordinate = True
+            elif doc.coordinator_id:
+                doc.can_coordinate = doc.coordinator_id.id == uid
+            else:
+                doc.can_coordinate = doc.creator_id.id == uid
+
     # ==================== CRUD ====================
 
     @api.model_create_multi
@@ -321,6 +339,21 @@ class DsDocument(models.Model):
         return result
 
     # ==================== Workflow Actions ====================
+
+    def _check_can_coordinate(self):
+        if self.env.user.has_group('sign_dochub.group_ds_manager'):
+            return
+        for doc in self:
+            if doc.coordinator_id and doc.coordinator_id.id != self.env.uid:
+                raise UserError(
+                    "Bạn không có quyền điều phối chứng từ này. "
+                    f"Người điều phối hiện tại là '{doc.coordinator_id.name}'."
+                )
+            if not doc.coordinator_id and doc.creator_id.id != self.env.uid:
+                raise UserError(
+                    "Chứng từ chưa có Người điều phối. "
+                    "Chỉ người tạo chứng từ mới có thể điều phối."
+                )
 
     def _sync_attachment_binding(self):
         """Ensure linked attachments are bound to this document for normal ACL visibility."""
@@ -344,6 +377,7 @@ class DsDocument(models.Model):
     def action_start_workflow(self):
         """Button [Khởi tạo quy trình]: Validate → in_progress"""
         self.ensure_one()
+        self._check_can_coordinate()
         if not self.request_item_ids:
             raise UserError("Please add at least one workflow step before starting.")
         self.write({
@@ -361,10 +395,12 @@ class DsDocument(models.Model):
 
     def action_adjust(self):
         """Button [Đặt vị trí ký]: Switch to adjusting state"""
+        self._check_can_coordinate()
         self.write({'state': 'adjusting', 'position_confirmed': False})
 
     def action_reset_positions(self):
         """Button [Reset vị trí ký]: Clear signature positions"""
+        self._check_can_coordinate()
         self.request_item_ids.write({
             'signature_pos_x': 0,
             'signature_pos_y': 0,
@@ -467,12 +503,23 @@ class DsDocument(models.Model):
                 raise UserError("Không có bước nào đang chờ để duyệt.")
             if pending_item.role != 'approve':
                 raise UserError("Bước hiện tại không phải loại Phê duyệt.")
+            if not pending_item.user_id:
+                raise UserError(
+                    "Bước phê duyệt hiện tại chưa được gán người dùng nội bộ. "
+                    "Vui lòng cập nhật Người nhận trước khi duyệt."
+                )
+            if pending_item.user_id.id != self.env.uid:
+                raise UserError(
+                    "Bạn không có quyền duyệt bước này. "
+                    f"Chỉ '{pending_item.user_id.name}' mới có thể thực hiện."
+                )
 
             pending_item.action_approve()
             doc._activate_next_step()
 
     def action_reject_document(self):
         """Button [Từ chối]: Change state to rejected"""
+        self._check_can_coordinate()
         self.write({'state': 'rejected'})
         self.request_item_ids.filtered(
             lambda i: i.state not in ('done', 'cancelled', 'rejected')
@@ -480,6 +527,7 @@ class DsDocument(models.Model):
 
     def action_publish(self):
         """Button [Ban hành kết quả]: Send email to all customers"""
+        self._check_can_coordinate()
         for doc in self:
             if not doc.customer_ids:
                 raise ValidationError("Vui lòng thêm khách hàng trong tab Quy trình khách hàng trước khi ban hành kết quả.")
@@ -488,6 +536,7 @@ class DsDocument(models.Model):
 
     def action_request_resign(self):
         """Button [Yêu cầu ký lại]: chỉ yêu cầu bước ngay trước bước đang chờ ký ký lại"""
+        self._check_can_coordinate()
         for doc in self:
             ordered_items = doc.request_item_ids.sorted(lambda i: (i.sequence, i.id))
             pending_index = next(
@@ -512,6 +561,7 @@ class DsDocument(models.Model):
 
     def action_cancel(self):
         """Cancel document — in production, opens wizard for reason"""
+        self._check_can_coordinate()
         self.write({'state': 'cancelled'})
         self.request_item_ids.filtered(
             lambda i: i.state not in ('done', 'cancelled')
@@ -519,6 +569,7 @@ class DsDocument(models.Model):
 
     def action_reset_to_draft(self):
         """Reset to draft state"""
+        self._check_can_coordinate()
         self.write({'state': 'draft', 'position_confirmed': False})
         self.request_item_ids.write({
             'state': 'draft',
@@ -533,6 +584,7 @@ class DsDocument(models.Model):
 
     def apply_template(self):
         """Button [Tải quy trình]: Apply template steps to this document"""
+        self._check_can_coordinate()
         for doc in self:
             if not doc.template_id:
                 raise UserError("Please select a workflow template first.")
@@ -551,6 +603,7 @@ class DsDocument(models.Model):
 
     def save_as_template(self):
         """Button [Lưu mẫu quy trình]: Save current config as template"""
+        self._check_can_coordinate()
         for doc in self:
             template = self.env['ds.document.template'].create({
                 'name': f"Template from {doc.name}",
@@ -615,6 +668,7 @@ class DsDocument(models.Model):
     def action_open_sign_position(self):
         """Open the full-screen sign position editor (client action)"""
         self.ensure_one()
+        self._check_can_coordinate()
         self._sync_attachment_binding()
         return {
             'type': 'ir.actions.client',
@@ -636,6 +690,7 @@ class DsDocument(models.Model):
              Nếu chưa → raise UserError hướng dẫn người dùng
              nhấn "Đặt vị trí ký" trước.
         """
+        self._check_can_coordinate()
         for doc in self:
             # --- Kiểm tra 1: phải có bước ký ---
             if not doc.request_item_ids:

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
 
@@ -41,25 +41,25 @@
                         <!-- draft -->
                         <button name="action_start_workflow" string="Khởi tạo quy trình"
                                 type="object" class="btn-success"
-                                invisible="state != 'draft'"/>
+                                invisible="state != 'draft' or not can_coordinate"/>
                         <!-- in_progress -->
                     
                         <button name="action_adjust" string="Tạo quy trình"
                                 type="object" class="btn-primary"
-                                invisible="state != 'in_progress'"/>
+                                invisible="state != 'in_progress' or not can_coordinate"/>
                         <button name="action_cancel" string="Hủy chứng từ"
                                 type="object" class="btn-secondary"
-                                invisible="state not in ('in_progress', 'done')"/>
+                                invisible="state not in ('in_progress', 'done') or not can_coordinate"/>
                         <!-- adjusting -->
                         <button name="action_open_sign_position" string="Đặt vị trí ký"
                                 type="object" 
-                                invisible="state != 'adjusting' or position_confirmed"/>
+                                invisible="state != 'adjusting' or position_confirmed or not can_coordinate"/>
                         <button name="action_reset_positions" string="Reset vị trí ký"
                                 type="object"
-                                invisible="state != 'adjusting' or position_confirmed"/>
+                                invisible="state != 'adjusting' or position_confirmed or not can_coordinate"/>
                         <button name="action_confirm_positions" string="Gửi quy trình"
                                 type="object" class="btn-primary"
-                                invisible="state != 'adjusting' or position_confirmed or not sign_positions_set"/>
+                                invisible="state != 'adjusting' or position_confirmed or not sign_positions_set or not can_coordinate"/>
                         <!-- sign actions -->
                         <button name="action_send_sign_request" string="Gửi yêu cầu kí"
                                 type="object" 
@@ -70,7 +70,7 @@
                         <!-- approve actions -->
                         <button name="action_approve_step" string="Duyệt"
                                 type="object" class="btn-success"
-                                invisible="state != 'adjusting' or not position_confirmed or current_signer_role != 'approve'"/>
+                                invisible="state != 'adjusting' or not position_confirmed or current_signer_role != 'approve' or current_signer_id != uid"/>
                         <button name="action_reject_document" string="Từ chối"
                                 type="object" class="btn-danger"
                                 invisible="state != 'adjusting' or not position_confirmed"/>
@@ -80,16 +80,17 @@
                         <!-- done -->
                         <button name="action_publish" string="Ban hành kết quả"
                                 type="object" class="btn-success"
-                                invisible="state != 'done'"/>
+                                invisible="state != 'done' or not can_coordinate"/>
                         <!-- rejected / cancelled -->
                         <button name="action_reset_to_draft" string="Đưa về nháp"
                                 type="object"
-                                invisible="state not in ('rejected', 'cancelled')"/>
+                                invisible="state not in ('rejected', 'cancelled') or not can_coordinate"/>
                         <field name="position_confirmed" invisible="1"/>
                         <field name="sign_positions_set" invisible="1"/>
                         <field name="can_finish_sign_step" invisible="1"/>
                         <field name="can_request_resign" invisible="1"/>
                         <field name="current_signer_role" invisible="1"/>
+                        <field name="can_coordinate" invisible="1"/>
                         <field name="state" widget="statusbar"
                                statusbar_visible="draft,in_progress,adjusting,done,rejected,cancelled"/>
                     </header>
@@ -144,9 +145,9 @@
                             <page string="Quy trình nội bộ" name="page_adjusting_process">
                                 <div class="mb-3">
                                     <button name="save_as_template" string="Lưu mẫu quy trình"
-                                            type="object" class="btn-success me-2"/>
+                                            type="object" class="btn-success me-2" invisible="not can_coordinate"/>
                                     <button name="apply_template" string="Tải quy trình"
-                                            type="object" class="btn-success"/>
+                                            type="object" class="btn-success" invisible="not can_coordinate"/>
                                 </div>
                                 <field name="request_item_ids">
                                     <list editable="bottom">
@@ -243,9 +244,9 @@
                             <page string="Quy Trình nội bộ" name="page_process">
                                 <div class="mb-3">
                                     <button name="save_as_template" string="Lưu mẫu quy trình"
-                                            type="object" class="btn-secondary me-2"/>
+                                            type="object" class="btn-secondary me-2" invisible="not can_coordinate"/>
                                     <button name="apply_template" string="Tải quy trình"
-                                            type="object" class="btn-secondary"/>
+                                            type="object" class="btn-secondary" invisible="not can_coordinate"/>
                                 </div>
                                 <field name="request_item_ids">
                                     <list editable="bottom">
